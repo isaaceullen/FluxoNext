@@ -7,9 +7,11 @@ import { format, parseISO, addMonths } from 'date-fns';
 import { parseTransactionText } from '../services/geminiService';
 import { ExtractedData } from '../types';
 import { motion } from 'motion/react';
+import { LoginModal } from './LoginModal';
 
 export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseId?: string | null, onClearEditing?: () => void }) => {
   const { 
+    user,
     expenses, 
     expenseCategories, 
     cards, 
@@ -21,7 +23,8 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     lastUsedPaymentMethod,
     setLastUsedPaymentMethod
   } = useFinance();
-  const [activeTab, setActiveTab] = useState<'manual' | 'fixed' | 'chat'>('manual');
+  const [activeTab, setActiveTab] = useState<'manual' | 'fixed' | 'chat'>('chat');
+  const [showLoginModal, setShowLoginModal] = useState(false);
   
   // View State (for the list below)
   const [viewMonth, setViewMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
@@ -235,7 +238,24 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
       </div>
 
       {activeTab === 'chat' ? (
-        <ExpenseChat />
+        user ? (
+          <ExpenseChat />
+        ) : (
+          <div className="relative h-[600px] bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden flex items-center justify-center p-8 text-center">
+            <div className="max-w-xs space-y-4">
+              <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center text-yellow-500 mx-auto">
+                <MessageSquare className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-zinc-100">Chat IA Bloqueado</h3>
+              <p className="text-zinc-400 text-sm">
+                Faça login para usar nossa inteligência artificial e lançar gastos por texto ou voz.
+              </p>
+              <Button onClick={() => setShowLoginModal(true)} className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold">
+                Fazer Login
+              </Button>
+            </div>
+          </div>
+        )
       ) : (
         <>
           <Card className="border-yellow-500/50">
@@ -440,6 +460,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
           </div>
         </>
       )}
+      {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
     </div>
   );
 };

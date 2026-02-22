@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Income, Expense, Category, CreditCard, CardPaymentStatus } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { addMonths, format, parseISO, isSameMonth } from 'date-fns';
+import { supabase } from '../lib/supabase';
+import { User } from '@supabase/supabase-js';
 
 const STORAGE_KEY = 'fluxonext_data_v2';
 
@@ -36,11 +38,12 @@ interface FinanceData {
 }
 
 export const useFinance = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [data, setData] = useState<FinanceData>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      // Ensure all arrays are initialized even if missing in stored data (migration)
       return {
         incomes: parsed.incomes || [],
         expenses: parsed.expenses || [],
@@ -62,9 +65,60 @@ export const useFinance = () => {
     };
   });
 
+  // Auth listener
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Fetch from Supabase when user logs in
+  useEffect(() => {
+    const fetchSupabaseData = async () => {
+      if (!user) return;
+      
+      const { data: dbData, error } = await supabase
+        .from('user_finance')
+        .select('data')
+        .eq('user_id', user.id)
+        .single();
+
+      if (dbData && !error) {
+        setData(dbData.data);
+      } else if (error && error.code === 'PGRST116') {
+        // No data found, sync local to cloud
+        const localData = localStorage.getItem(STORAGE_KEY);
+        if (localData) {
+          const parsed = JSON.parse(localData);
+          await supabase.from('user_finance').insert({ user_id: user.id, data: parsed });
+        }
+      }
+    };
+
+    fetchSupabaseData();
+  }, [user]);
+
+  // Persist to localStorage and Supabase
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [data]);
+    
+    const saveToSupabase = async () => {
+      if (!user) return;
+      await supabase
+        .from('user_finance')
+        .upsert({ user_id: user.id, data }, { onConflict: 'user_id' });
+    };
+
+    const timeout = setTimeout(saveToSupabase, 1000); // Debounce saves
+    return () => clearTimeout(timeout);
+  }, [data, user]);
 
   // --- Expenses ---
 
@@ -353,6 +407,8 @@ export const useFinance = () => {
   };
 
   return {
+    user,
+    loading,
     incomes: data.incomes,
     expenses: data.expenses,
     incomeCategories: data.incomeCategories,

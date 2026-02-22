@@ -6,17 +6,21 @@ import { Income } from './components/Income';
 import { Dashboard } from './components/Dashboard';
 import { Cards } from './components/Cards';
 import { Categories } from './components/Categories';
+import { useFinance } from './hooks/useFinance';
+import { UserMenu } from './components/UserMenu';
+import { LoginModal } from './components/LoginModal';
 import { cn } from './utils';
 import { motion } from 'motion/react';
 
 type View = 'home' | 'income' | 'expenses' | 'dashboard' | 'cards' | 'categories';
 
 function App() {
+  const { user, loading } = useFinance();
   const [currentView, setCurrentView] = useState<View>('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const STORAGE_KEY = 'fluxonext_data_v2';
@@ -48,7 +52,6 @@ function App() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    setIsUserMenuOpen(false);
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,66 +107,15 @@ function App() {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-zinc-800 relative">
-          {isUserMenuOpen && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              className="absolute bottom-full left-4 right-4 mb-2 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden z-50"
-            >
-              <button 
-                onClick={handleExport}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800"
-              >
-                <Download className="w-4 h-4 text-yellow-500" />
-                Exportar Dados (JSON)
-              </button>
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800"
-              >
-                <Upload className="w-4 h-4 text-yellow-500" />
-                Importar Dados (JSON)
-              </button>
-              <button 
-                onClick={() => {
-                  setIsClearModalOpen(true);
-                  setIsUserMenuOpen(false);
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                Limpar Todos os Dados
-              </button>
-            </motion.div>
-          )}
-
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleImport} 
-            accept=".json" 
-            className="hidden" 
+        <div className="p-4 border-t border-zinc-800">
+          <UserMenu 
+            user={user}
+            onExport={handleExport}
+            onImport={handleImport}
+            onClear={() => setIsClearModalOpen(true)}
+            onLogin={() => setShowLoginModal(true)}
+            fileInputRef={fileInputRef}
           />
-
-          <button 
-            onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-            className={cn(
-              "w-full flex items-center justify-between p-3 rounded-xl transition-all",
-              isUserMenuOpen ? "bg-zinc-900 ring-1 ring-zinc-700" : "hover:bg-zinc-900"
-            )}
-          >
-            <div className="flex items-center gap-3 text-left">
-              <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 font-bold border border-zinc-700">
-                US
-              </div>
-              <div>
-                <p className="text-sm font-medium text-zinc-200">Usuário</p>
-                <p className="text-xs text-zinc-500">Free Plan</p>
-              </div>
-            </div>
-            <ChevronUp className={cn("w-4 h-4 text-zinc-500 transition-transform", isUserMenuOpen && "rotate-180")} />
-          </button>
         </div>
       </aside>
 
@@ -177,8 +129,8 @@ function App() {
 
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-30 bg-black/90 pt-20 px-4">
-          <nav className="space-y-2">
+        <div className="md:hidden fixed inset-0 z-30 bg-black/90 pt-20 px-4 flex flex-col">
+          <nav className="flex-1 space-y-2">
             {navItems.map(item => (
               <button
                 key={item.id}
@@ -199,6 +151,17 @@ function App() {
               </button>
             ))}
           </nav>
+
+          <div className="pb-8 pt-4 border-t border-zinc-800">
+            <UserMenu 
+              user={user}
+              onExport={handleExport}
+              onImport={handleImport}
+              onClear={() => setIsClearModalOpen(true)}
+              onLogin={() => setShowLoginModal(true)}
+              fileInputRef={fileInputRef}
+            />
+          </div>
         </div>
       )}
 
@@ -231,6 +194,8 @@ function App() {
       >
         <PlusCircle className="w-8 h-8" />
       </motion.button>
+
+      {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
 
       {/* Clear Data Confirmation Modal */}
       {isClearModalOpen && (

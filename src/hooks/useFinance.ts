@@ -7,26 +7,6 @@ import { User } from '@supabase/supabase-js';
 
 const STORAGE_KEY = 'fluxonext_data_v2';
 
-const DEFAULT_INCOME_CATEGORIES: Category[] = [
-  { id: 'inc-1', name: 'Salário', color: '#10B981', type: 'income' },
-  { id: 'inc-2', name: 'Freelance', color: '#3B82F6', type: 'income' },
-  { id: 'inc-3', name: 'Investimentos', color: '#8B5CF6', type: 'income' },
-];
-
-const DEFAULT_EXPENSE_CATEGORIES: Category[] = [
-  { id: 'exp-1', name: 'Alimentação', color: '#F59E0B', type: 'expense' },
-  { id: 'exp-2', name: 'Transporte', color: '#3B82F6', type: 'expense' },
-  { id: 'exp-3', name: 'Moradia', color: '#10B981', type: 'expense' },
-  { id: 'exp-4', name: 'Lazer', color: '#8B5CF6', type: 'expense' },
-  { id: 'exp-5', name: 'Saúde', color: '#EF4444', type: 'expense' },
-  { id: 'exp-6', name: 'Outros', color: '#6B7280', type: 'expense' },
-];
-
-const DEFAULT_CARDS: CreditCard[] = [
-  { id: 'card-1', name: 'Nubank', closingDay: 1, dueDay: 8, color: '#820AD1' },
-  { id: 'card-2', name: 'Inter', closingDay: 10, dueDay: 17, color: '#FF7A00' },
-];
-
 interface FinanceData {
   incomes: Income[];
   expenses: Expense[];
@@ -49,9 +29,9 @@ export const useFinance = () => {
       return {
         incomes: parsed.incomes || [],
         expenses: parsed.expenses || [],
-        incomeCategories: parsed.incomeCategories || DEFAULT_INCOME_CATEGORIES,
-        expenseCategories: parsed.expenseCategories || DEFAULT_EXPENSE_CATEGORIES,
-        cards: parsed.cards || DEFAULT_CARDS,
+        incomeCategories: parsed.incomeCategories || [],
+        expenseCategories: parsed.expenseCategories || [],
+        cards: parsed.cards || [],
         cardPayments: parsed.cardPayments || [],
         lastUsedPaymentMethod: parsed.lastUsedPaymentMethod || 'cash',
       };
@@ -59,9 +39,9 @@ export const useFinance = () => {
     return {
       incomes: [],
       expenses: [],
-      incomeCategories: DEFAULT_INCOME_CATEGORIES,
-      expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
-      cards: DEFAULT_CARDS,
+      incomeCategories: [],
+      expenseCategories: [],
+      cards: [],
       cardPayments: [],
       lastUsedPaymentMethod: 'cash',
     };
@@ -108,7 +88,7 @@ export const useFinance = () => {
       const localDataStr = localStorage.getItem(STORAGE_KEY);
       const localData: FinanceData | null = localDataStr ? JSON.parse(localDataStr) : null;
       const localUpdatedAt = localData?.lastUpdated ? new Date(localData.lastUpdated).getTime() : 0;
-      const isLocalEmpty = !localData || (localData.expenses.length === 0 && localData.incomes.length === 0);
+      const isLocalEmpty = !localData || (localData.expenses.length === 0 && localData.incomes.length === 0 && localData.cards.length === 0);
 
       if (dbData) {
         const cloudData = dbData.data as FinanceData;
@@ -117,19 +97,19 @@ export const useFinance = () => {
         console.log('Dados da nuvem encontrados. Comparando timestamps:', {
           cloud: new Date(cloudUpdatedAt).toISOString(),
           local: new Date(localUpdatedAt).toISOString(),
-          isLocalEmpty
+          isLocalEmpty,
+          isManual
         });
 
         // Cloud-First Logic: 
-        // 1. If local is empty, always take cloud.
-        // 2. If cloud is newer or equal, take cloud.
-        // 3. If local is newer, push local to cloud.
-        if (isLocalEmpty || cloudUpdatedAt >= localUpdatedAt) {
+        // 1. If it's NOT a manual sync (initial load), ALWAYS take cloud if it exists.
+        // 2. If it's manual, use timestamp comparison.
+        if (!isManual || isLocalEmpty || cloudUpdatedAt >= localUpdatedAt) {
           console.log('Priorizando dados da nuvem (Cloud-First).');
           setData(cloudData);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
-        } else {
-          console.log('Dados locais são mais recentes. Atualizando nuvem...');
+        } else if (isManual && localUpdatedAt > cloudUpdatedAt) {
+          console.log('Sincronização manual: Dados locais são mais recentes. Atualizando nuvem...');
           const { error: upsertError } = await supabase.from('user_finance').upsert({ 
             user_id: user.id, 
             data: localData,
@@ -151,10 +131,6 @@ export const useFinance = () => {
         }
       }
       
-      if (isManual) {
-        // Simple feedback for manual sync
-        console.log('Sincronização manual concluída com sucesso.');
-      }
       return true;
     } catch (err) {
       console.error('Falha crítica na sincronização:', err);

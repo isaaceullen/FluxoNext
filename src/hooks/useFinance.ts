@@ -82,49 +82,83 @@ export const useFinance = () => {
   }, []);
 
   // Fetch from Supabase when user logs in
-  const syncDataWithCloud = useCallback(async () => {
-    if (!user) return;
+  const syncDataWithCloud = useCallback(async (isManual = false) => {
+    if (!user) return false;
     setSyncing(true);
     
     try {
+      console.log('Iniciando sincronização para o usuário:', user.id);
+      
       const { data: dbData, error } = await supabase
         .from('user_finance')
         .select('data, updated_at')
         .eq('user_id', user.id)
         .single();
 
+      if (error && error.code !== 'PGRST116') {
+        console.error('Erro detalhado ao buscar dados no Supabase:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        throw error;
+      }
+
       const localDataStr = localStorage.getItem(STORAGE_KEY);
       const localData: FinanceData | null = localDataStr ? JSON.parse(localDataStr) : null;
+      const localUpdatedAt = localData?.lastUpdated ? new Date(localData.lastUpdated).getTime() : 0;
+      const isLocalEmpty = !localData || (localData.expenses.length === 0 && localData.incomes.length === 0);
 
-      if (dbData && !error) {
+      if (dbData) {
         const cloudData = dbData.data as FinanceData;
         const cloudUpdatedAt = new Date(dbData.updated_at).getTime();
-        const localUpdatedAt = localData?.lastUpdated ? new Date(localData.lastUpdated).getTime() : 0;
 
-        if (localUpdatedAt > cloudUpdatedAt) {
-          // Local is newer, push to cloud
-          await supabase.from('user_finance').upsert({ 
-            user_id: user.id, 
-            data: localData,
-            updated_at: new Date().toISOString()
-          });
-          setData(localData!);
-        } else {
-          // Cloud is newer or equal, pull from cloud
+        console.log('Dados da nuvem encontrados. Comparando timestamps:', {
+          cloud: new Date(cloudUpdatedAt).toISOString(),
+          local: new Date(localUpdatedAt).toISOString(),
+          isLocalEmpty
+        });
+
+        // Cloud-First Logic: 
+        // 1. If local is empty, always take cloud.
+        // 2. If cloud is newer or equal, take cloud.
+        // 3. If local is newer, push local to cloud.
+        if (isLocalEmpty || cloudUpdatedAt >= localUpdatedAt) {
+          console.log('Priorizando dados da nuvem (Cloud-First).');
           setData(cloudData);
-        }
-      } else if (error && error.code === 'PGRST116') {
-        // No data found in cloud, push local to cloud
-        if (localData) {
-          await supabase.from('user_finance').insert({ 
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudData));
+        } else {
+          console.log('Dados locais são mais recentes. Atualizando nuvem...');
+          const { error: upsertError } = await supabase.from('user_finance').upsert({ 
             user_id: user.id, 
             data: localData,
             updated_at: new Date().toISOString()
           });
+          if (upsertError) throw upsertError;
+        }
+      } else {
+        // No data found in cloud (PGRST116)
+        console.log('Nenhum dado encontrado na nuvem.');
+        if (!isLocalEmpty) {
+          console.log('Enviando dados locais iniciais para a nuvem...');
+          const { error: insertError } = await supabase.from('user_finance').insert({ 
+            user_id: user.id, 
+            data: localData,
+            updated_at: new Date().toISOString()
+          });
+          if (insertError) throw insertError;
         }
       }
+      
+      if (isManual) {
+        // Simple feedback for manual sync
+        console.log('Sincronização manual concluída com sucesso.');
+      }
+      return true;
     } catch (err) {
-      console.error('Sync error:', err);
+      console.error('Falha crítica na sincronização:', err);
+      return false;
     } finally {
       setSyncing(false);
     }

@@ -10,7 +10,8 @@ import { useFinance } from './hooks/useFinance';
 import { UserMenu } from './components/UserMenu';
 import { LoginModal } from './components/LoginModal';
 import { cn } from './utils';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { CheckCircle2 } from 'lucide-react';
 
 type View = 'home' | 'income' | 'expenses' | 'dashboard' | 'cards' | 'categories';
 
@@ -21,6 +22,7 @@ function App() {
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showToast, setShowToast] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const STORAGE_KEY = 'fluxonext_data_v2';
@@ -77,6 +79,14 @@ function App() {
     window.location.reload();
   };
 
+  const handleManualSync = async () => {
+    const success = await syncDataWithCloud(true);
+    if (success) {
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-zinc-100 font-sans selection:bg-yellow-500/30">
       {/* Sidebar (Desktop) */}
@@ -111,7 +121,7 @@ function App() {
           <UserMenu 
             user={user}
             syncing={syncing}
-            onSync={syncDataWithCloud}
+            onSync={handleManualSync}
             onExport={handleExport}
             onImport={handleImport}
             onClear={() => setIsClearModalOpen(true)}
@@ -158,7 +168,7 @@ function App() {
             <UserMenu 
               user={user}
               syncing={syncing}
-              onSync={syncDataWithCloud}
+              onSync={handleManualSync}
               onExport={handleExport}
               onImport={handleImport}
               onClear={() => setIsClearModalOpen(true)}
@@ -200,6 +210,21 @@ function App() {
       </motion.button>
 
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {showToast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] bg-emerald-500 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-3 font-medium"
+          >
+            <CheckCircle2 className="w-5 h-5" />
+            Dados sincronizados com sucesso!
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Clear Data Confirmation Modal */}
       {isClearModalOpen && (

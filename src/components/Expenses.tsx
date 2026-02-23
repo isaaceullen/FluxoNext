@@ -1,11 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { useFinance } from '../hooks/useFinance';
 import { Card, Button, Input, Select } from './ui';
-import { Plus, Trash2, Calendar, CreditCard as CardIcon, DollarSign, MessageSquare, List, Send, Check, Edit2, ArrowLeft, ArrowRight, ChevronDown, X, Search, Filter, Mic } from 'lucide-react';
+import { Plus, Trash2, Calendar, CreditCard as CardIcon, DollarSign, MessageSquare, List, Send, Check, Edit2, ArrowLeft, ArrowRight, ChevronDown, X, Search, Filter } from 'lucide-react';
 import { formatCurrency, cn } from '../utils';
 import { format, parseISO, addMonths, subMonths, eachMonthOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { parseTransactionText, parseTransactionAudio } from '../services/geminiService';
+import { parseTransactionText } from '../services/geminiService';
 import { ExtractedData, Expense } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { LoginModal } from './LoginModal';
@@ -795,82 +795,9 @@ const ExpenseChat = () => {
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const { cards, expenseCategories, addExpense, addInstallmentExpense, lastUsedPaymentMethod, setLastUsedPaymentMethod } = useFinance();
   const [messages, setMessages] = useState<{ role: 'user' | 'ai'; content: string | React.ReactNode }[]>([
-    { role: 'ai', content: 'Digite seu gasto ou segure o microfone para falar.' }
+    { role: 'ai', content: 'Digite seu gasto para eu registrar.' }
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Audio Recording State
-  const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        await handleAudioSend(audioBlob);
-        stream.getTracks().forEach(track => track.stop()); // Stop mic access
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (error) {
-      console.error("Error accessing microphone:", error);
-      alert("Permissão de microfone negada ou não suportada.");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const handleAudioSend = async (audioBlob: Blob) => {
-    setIsLoading(true);
-    setExtractedData(null);
-    setMessages(prev => [...prev, { role: 'user', content: '🎤 Áudio enviado...' }]);
-
-    try {
-      const reader = new FileReader();
-      reader.readAsDataURL(audioBlob);
-      reader.onloadend = async () => {
-        const base64Audio = (reader.result as string).split(',')[1];
-        
-        const result = await parseTransactionAudio(base64Audio, audioBlob.type);
-        
-        setExtractedData(result);
-        
-        if (result.missingFields && result.missingFields.length > 0 && result.missingFields[0] !== 'error') {
-           setMessages(prev => [...prev, { 
-             role: 'ai', 
-             content: `Preciso de mais detalhes: ${result.missingFields.join(', ')}` 
-           }]);
-        } else if (result.missingFields && result.missingFields[0] === 'error') {
-           setMessages(prev => [...prev, { role: 'ai', content: 'Não consegui entender o áudio. Tente novamente.' }]);
-        } else {
-           setMessages(prev => [...prev, { role: 'ai', content: 'Confira os dados extraídos do áudio:' }]);
-        }
-        setIsLoading(false);
-      };
-    } catch (error) {
-      console.error("Error processing audio:", error);
-      setMessages(prev => [...prev, { role: 'ai', content: 'Erro ao processar áudio.' }]);
-      setIsLoading(false);
-    }
-  };
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -1038,37 +965,11 @@ const ExpenseChat = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Digite ou segure o microfone..."
+            placeholder="Digite seu gasto..."
             className="bg-zinc-900 border-zinc-800 focus:ring-yellow-500/20"
-            disabled={isRecording}
           />
-          
-          <button
-            className={cn(
-              "p-3 rounded-xl transition-all flex items-center justify-center relative overflow-hidden",
-              isRecording 
-                ? "bg-red-500/20 text-red-500 scale-110 ring-2 ring-red-500/50" 
-                : "bg-zinc-800 text-zinc-400 hover:text-yellow-500 hover:bg-zinc-700"
-            )}
-            onMouseDown={startRecording}
-            onMouseUp={stopRecording}
-            onTouchStart={(e) => {
-              e.preventDefault(); // Prevent default touch behavior
-              startRecording();
-            }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              stopRecording();
-            }}
-            title="Segure para falar"
-          >
-             <Mic className={cn("w-5 h-5", isRecording && "animate-pulse")} />
-             {isRecording && (
-               <span className="absolute inset-0 bg-red-500/10 animate-ping rounded-xl" />
-             )}
-          </button>
 
-          <Button size="icon" onClick={handleSend} disabled={isLoading || !input.trim() || isRecording}>
+          <Button size="icon" onClick={handleSend} disabled={isLoading || !input.trim()}>
             <Send className="w-4 h-4" />
           </Button>
         </div>

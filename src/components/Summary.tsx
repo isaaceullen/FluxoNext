@@ -38,10 +38,10 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
 
   const cashExpenses = monthlyExpenses.filter(e => e.currentMonthPaymentMethod === 'cash');
 
-  // Month Dropdown Options (Last 12 months + Next 12 months)
+  // Month Dropdown Options (Last 5 years + Next 10 years)
   const monthOptions = eachMonthOfInterval({
-    start: subMonths(new Date(), 6),
-    end: addMonths(new Date(), 12)
+    start: subMonths(new Date(), 12 * 5),
+    end: addMonths(new Date(), 12 * 10)
   }).map(date => format(date, 'yyyy-MM'));
 
   const selectedCard = cards.find(c => c.id === selectedCardId);

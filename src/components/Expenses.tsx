@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { useFinance } from '../hooks/useFinance';
 import { Card, Button, Input, Select } from './ui';
-import { Plus, Trash2, Calendar, CreditCard as CardIcon, DollarSign, MessageSquare, List, Send, Check, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Calendar, CreditCard as CardIcon, DollarSign, MessageSquare, List, Send, Check, Edit2, ArrowLeft, ArrowRight, ChevronDown, X } from 'lucide-react';
 import { formatCurrency, cn } from '../utils';
-import { format, parseISO, addMonths } from 'date-fns';
+import { format, parseISO, addMonths, subMonths, eachMonthOfInterval } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { parseTransactionText } from '../services/geminiService';
-import { ExtractedData } from '../types';
-import { motion } from 'motion/react';
+import { ExtractedData, Expense } from '../types';
+import { motion, AnimatePresence } from 'motion/react';
 import { LoginModal } from './LoginModal';
 
 export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseId?: string | null, onClearEditing?: () => void }) => {
@@ -21,13 +22,21 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     deleteExpense, 
     updateFixedExpenseValue,
     lastUsedPaymentMethod,
-    setLastUsedPaymentMethod
+    setLastUsedPaymentMethod,
+    getExpenseValueForMonth
   } = useFinance();
   const [activeTab, setActiveTab] = useState<'manual' | 'fixed' | 'chat'>('chat');
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
   
   // View State (for the list below)
-  const [viewMonth, setViewMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [viewMonth, setViewMonth] = useState(format(addMonths(new Date(), 1), 'yyyy-MM')); // YYYY-MM
+
+  // Installment Edit Modal State
+  const [installmentEditData, setInstallmentEditData] = useState<{
+    expense: Expense;
+    updates: Partial<Expense>;
+  } | null>(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -119,6 +128,19 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     }
   };
 
+  const handlePurchaseDateChange = (date: string) => {
+    const nextMonth = format(addMonths(parseISO(date), 1), 'yyyy-MM');
+    setFormData(prev => ({ ...prev, purchaseDate: date, billingMonth: nextMonth }));
+  };
+
+  const handlePrevMonth = () => setViewMonth(prev => format(subMonths(parseISO(prev + '-01'), 1), 'yyyy-MM'));
+  const handleNextMonth = () => setViewMonth(prev => format(addMonths(parseISO(prev + '-01'), 1), 'yyyy-MM'));
+
+  const monthOptions = eachMonthOfInterval({
+    start: subMonths(new Date(), 12 * 5), // 5 years past
+    end: addMonths(new Date(), 12 * 10) // 10 years future
+  }).map(date => format(date, 'yyyy-MM'));
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title || !formData.totalValue) return;
@@ -128,18 +150,24 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
 
     if (formData.id) {
       // Update existing
+      const exp = expenses.find(e => e.id === formData.id);
+      const updates = {
+        title: formData.title,
+        categoryId: formData.categoryId,
+        totalValue: totalVal,
+        installmentValue: instVal,
+        paymentMethod: formData.paymentMethod,
+        installments: formData.isInstallment ? { current: exp?.installments?.current || 1, total: formData.totalInstallments } : undefined
+      };
+
       if (activeTab === 'fixed') {
         updateFixedExpenseValue(formData.id, format(new Date(), 'yyyy-MM'), totalVal, formData.paymentMethod);
         updateExpense(formData.id, { title: formData.title, categoryId: formData.categoryId });
+      } else if (exp?.originalId) {
+        // It's an installment, show modal
+        setInstallmentEditData({ expense: exp, updates });
       } else {
-        updateExpense(formData.id, {
-          title: formData.title,
-          categoryId: formData.categoryId,
-          totalValue: totalVal,
-          installmentValue: instVal,
-          paymentMethod: formData.paymentMethod,
-          installments: formData.isInstallment ? { current: 1, total: formData.totalInstallments } : undefined
-        });
+        updateExpense(formData.id, updates);
       }
       if (onClearEditing) onClearEditing();
     } else {
@@ -187,19 +215,11 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     });
   };
 
-  // Filter expenses by PURCHASE DATE for the list
-  const filteredExpenses = expenses
-    .filter(e => e.purchaseDate.startsWith(viewMonth))
-    .reduce((acc: any[], curr) => {
-      if (curr.originalId) {
-        if (!acc.find(i => i.originalId === curr.originalId)) {
-          acc.push(curr);
-        }
-      } else {
-        acc.push(curr);
-      }
-      return acc;
-    }, [])
+  // Filter expenses by BILLING MONTH (similar to Summary)
+  const filteredExpenses = expenses.map(e => {
+    const { value, paymentMethod } = getExpenseValueForMonth(e, viewMonth);
+    return { ...e, currentMonthValue: value, currentMonthPaymentMethod: paymentMethod };
+  }).filter(e => e.currentMonthValue > 0)
     .sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime());
 
   return (
@@ -273,7 +293,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
                       label="Data da Compra" 
                       type="date"
                       value={formData.purchaseDate} 
-                      onChange={e => setFormData({...formData, purchaseDate: e.target.value})}
+                      onChange={e => handlePurchaseDateChange(e.target.value)}
                       required
                     />
                     <Input 
@@ -386,23 +406,65 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
           </Card>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-zinc-300">Histórico de Compras</h3>
-              <Input 
-                type="month" 
-                value={viewMonth}
-                onChange={e => setViewMonth(e.target.value)}
-                className="w-40"
-              />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h3 className="text-lg font-semibold text-zinc-300">Visão da Fatura</h3>
+              
+              <div className="flex items-center bg-zinc-900 rounded-xl p-1 border border-zinc-800">
+                <button onClick={handlePrevMonth} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-yellow-500 transition-colors">
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                
+                <div className="relative">
+                  <button 
+                    onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
+                    className="px-4 py-2 font-medium text-zinc-200 min-w-[160px] flex items-center justify-center gap-2 hover:bg-zinc-800 rounded-lg transition-colors capitalize"
+                  >
+                    {format(parseISO(viewMonth + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                    <ChevronDown className={cn("w-4 h-4 transition-transform", isMonthDropdownOpen && "rotate-180")} />
+                  </button>
+
+                  <AnimatePresence>
+                    {isMonthDropdownOpen && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto py-2"
+                      >
+                        {monthOptions.map(m => (
+                          <button
+                            key={m}
+                            onClick={() => {
+                              setViewMonth(m);
+                              setIsMonthDropdownOpen(false);
+                            }}
+                            className={cn(
+                              "w-full px-4 py-2 text-sm text-left hover:bg-zinc-800 transition-colors capitalize",
+                              viewMonth === m ? "text-yellow-500 bg-yellow-500/5" : "text-zinc-400"
+                            )}
+                          >
+                            {format(parseISO(m + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <button onClick={handleNextMonth} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-yellow-500 transition-colors">
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-3">
               {filteredExpenses.length === 0 ? (
-                <div className="text-center py-10 text-zinc-500">Nenhuma compra neste mês.</div>
+                <div className="text-center py-10 text-zinc-500">Nenhuma despesa para esta fatura.</div>
               ) : (
                 filteredExpenses.map(exp => {
                   const category = expenseCategories.find(c => c.id === exp.categoryId);
-                  const card = cards.find(c => c.id === exp.paymentMethod);
+                  const card = cards.find(c => c.id === (exp as any).currentMonthPaymentMethod);
+                  const displayValue = (exp as any).currentMonthValue;
                   
                   return (
                     <div key={exp.id} className="bg-zinc-900/50 border border-zinc-800 p-3 sm:p-4 rounded-xl flex items-center justify-between group">
@@ -420,14 +482,14 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
                             {exp.installments && (
                               <>
                                 <span className="text-zinc-600">•</span>
-                                <span className="text-yellow-500">{exp.installments.total}x</span>
+                                <span className="text-yellow-500">Parcela {exp.installments.current}/{exp.installments.total}</span>
                               </>
                             )}
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 sm:gap-4">
-                        <span className="font-bold text-zinc-200 text-sm sm:text-base">{formatCurrency(exp.totalValue)}</span>
+                        <span className="font-bold text-zinc-200 text-sm sm:text-base">{formatCurrency(displayValue)}</span>
                         <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                           <button 
                             onClick={() => {
@@ -437,7 +499,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
                                 billingMonth: exp.billingMonth,
                                 title: exp.title,
                                 categoryId: exp.categoryId,
-                                paymentMethod: exp.paymentMethod,
+                                paymentMethod: (exp as any).currentMonthPaymentMethod,
                                 isInstallment: exp.isInstallment,
                                 totalInstallments: exp.installments?.total || 1,
                                 totalValue: exp.totalValue.toString(),
@@ -467,6 +529,70 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
         </>
       )}
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
+
+      {/* Installment Edit Modal */}
+      <AnimatePresence>
+        {installmentEditData && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-zinc-100">Editar Parcelas</h3>
+                <button onClick={() => setInstallmentEditData(null)} className="p-2 text-zinc-400 hover:text-zinc-100">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <p className="text-zinc-400 text-sm mb-6">
+                Esta é uma despesa parcelada. Como deseja aplicar as alterações?
+              </p>
+
+              <div className="space-y-3">
+                <button 
+                  onClick={() => {
+                    updateExpense(installmentEditData.expense.id, installmentEditData.updates, 'only');
+                    setInstallmentEditData(null);
+                  }}
+                  className="w-full p-4 rounded-xl bg-zinc-900 border border-zinc-800 text-left hover:bg-zinc-800 transition-colors group"
+                >
+                  <p className="font-bold text-zinc-100 group-hover:text-yellow-500">Somente esta parcela</p>
+                  <p className="text-xs text-zinc-500">Altera apenas o item selecionado.</p>
+                </button>
+                <button 
+                  onClick={() => {
+                    updateExpense(installmentEditData.expense.id, installmentEditData.updates, 'future');
+                    setInstallmentEditData(null);
+                  }}
+                  className="w-full p-4 rounded-xl bg-zinc-900 border border-zinc-800 text-left hover:bg-zinc-800 transition-colors group"
+                >
+                  <p className="font-bold text-zinc-100 group-hover:text-yellow-500">Esta e as próximas</p>
+                  <p className="text-xs text-zinc-500">Altera esta parcela e todas as futuras da série.</p>
+                </button>
+                <button 
+                  onClick={() => {
+                    updateExpense(installmentEditData.expense.id, installmentEditData.updates, 'all');
+                    setInstallmentEditData(null);
+                  }}
+                  className="w-full p-4 rounded-xl bg-zinc-900 border border-zinc-800 text-left hover:bg-zinc-800 transition-colors group"
+                >
+                  <p className="font-bold text-zinc-100 group-hover:text-yellow-500">Todas as parcelas</p>
+                  <p className="text-xs text-zinc-500">Altera retroativamente e futuramente todos os itens.</p>
+                </button>
+              </div>
+
+              <div className="mt-6">
+                <Button variant="ghost" className="w-full" onClick={() => setInstallmentEditData(null)}>
+                  Cancelar
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

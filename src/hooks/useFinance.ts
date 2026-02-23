@@ -207,42 +207,48 @@ export const useFinance = () => {
     }));
   };
 
-  const updateExpense = (id: string, updates: Partial<Expense>) => {
+  const updateExpense = (id: string, updates: Partial<Expense>, mode: 'only' | 'future' | 'all' = 'only') => {
     setData(prev => {
       const expense = prev.expenses.find(e => e.id === id);
       if (!expense) return prev;
 
-      // If it's an installment and totalValue or installmentsCount changed, we need to recalculate
-      // Actually, the prompt says: "Editar uma compra parcelada deve recalcular todas as parcelas futuras automaticamente."
-      if (expense.originalId && (updates.totalValue !== undefined || updates.installments?.total !== undefined)) {
-        const totalValue = updates.totalValue ?? expense.totalValue;
-        const totalInstallments = updates.installments?.total ?? expense.installments?.total ?? 1;
-        const installmentValue = totalValue / totalInstallments;
-
+      // If it's not an installment or we only want to update this one
+      if (!expense.originalId || mode === 'only') {
         return {
           ...prev,
-          expenses: prev.expenses.map(e => {
-            if (e.originalId === expense.originalId && e.installments && e.installments.current >= (expense.installments?.current || 1)) {
-              // Update future installments
-              return {
-                ...e,
-                ...updates,
-                totalValue,
-                installmentValue,
-                installments: {
-                  ...e.installments,
-                  total: totalInstallments
-                }
-              };
-            }
-            return e.id === id ? { ...e, ...updates } : e;
-          })
+          expenses: prev.expenses.map(e => e.id === id ? { ...e, ...updates } : e)
         };
       }
 
+      // Handle installment updates (future or all)
+      const currentInstallment = expense.installments?.current || 1;
+
       return {
         ...prev,
-        expenses: prev.expenses.map(e => e.id === id ? { ...e, ...updates } : e)
+        expenses: prev.expenses.map(e => {
+          if (e.originalId === expense.originalId) {
+            const isFuture = e.installments && e.installments.current >= currentInstallment;
+            const isAll = mode === 'all';
+
+            if (isAll || isFuture) {
+              // Recalculate installment value if totalValue or total installments changed
+              let newInstallmentValue = e.installmentValue;
+              if (updates.totalValue !== undefined || (updates.installments && updates.installments.total !== undefined)) {
+                const totalVal = updates.totalValue ?? e.totalValue;
+                const totalInst = updates.installments?.total ?? e.installments?.total ?? 1;
+                newInstallmentValue = totalVal / totalInst;
+              }
+
+              return {
+                ...e,
+                ...updates,
+                installmentValue: newInstallmentValue,
+                installments: updates.installments ? { ...e.installments, total: updates.installments.total } : e.installments
+              };
+            }
+          }
+          return e;
+        })
       };
     });
   };

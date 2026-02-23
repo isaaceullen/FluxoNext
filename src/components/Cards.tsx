@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useFinance } from '../hooks/useFinance';
 import { Card, Button, Input } from './ui';
 import { Plus, Trash2, Edit2, X, Check, CreditCard as CardIcon } from 'lucide-react';
+import { motion } from 'motion/react';
 
 export const Cards = () => {
   const { cards, addCard, updateCard, deleteCard } = useFinance();
@@ -32,64 +33,87 @@ export const Cards = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-zinc-100">Cartões de Crédito</h2>
-        <Button onClick={() => setIsAdding(true)} size="sm">
-          <Plus className="w-4 h-4 mr-2" /> Novo Cartão
+        <h2 className="text-2xl font-bold text-zinc-100">Cartões</h2>
+        <Button onClick={() => setIsAdding(true)} size="sm" className="w-full sm:w-auto">
+          <Plus className="w-4 h-4 mr-2" /> <span className="hidden sm:inline">Novo Cartão</span><span className="sm:hidden">Novo</span>
         </Button>
       </div>
 
       {isAdding && (
-        <Card className="mb-6 border-yellow-500/50">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-            <Input 
-              label="Nome" 
-              value={newCard.name} 
-              onChange={e => setNewCard({...newCard, name: e.target.value})}
-              autoFocus
-              className="md:col-span-2"
-            />
-            <Input 
-              label="Fechamento (Dia)" 
-              type="number" min="1" max="31"
-              value={newCard.closingDay} 
-              onChange={e => setNewCard({...newCard, closingDay: parseInt(e.target.value)})}
-            />
-            <Input 
-              label="Vencimento (Dia)" 
-              type="number" min="1" max="31"
-              value={newCard.dueDay} 
-              onChange={e => setNewCard({...newCard, dueDay: parseInt(e.target.value)})}
-            />
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Cor</label>
-              <input 
-                type="color" 
-                value={newCard.color}
-                onChange={e => setNewCard({...newCard, color: e.target.value})}
-                className="h-10 w-full rounded-xl cursor-pointer bg-zinc-900 border border-zinc-800 p-1"
-              />
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-zinc-950 border-t sm:border border-zinc-800 rounded-t-3xl sm:rounded-2xl p-6 w-full max-w-2xl shadow-2xl overflow-y-auto max-h-[90vh]"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-zinc-100">Novo Cartão</h3>
+              <button onClick={() => setIsAdding(false)} className="p-2 text-zinc-400 hover:text-zinc-100">
+                <X className="w-6 h-6" />
+              </button>
             </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="ghost" onClick={() => setIsAdding(false)}>Cancelar</Button>
-            <Button onClick={handleAdd}>Salvar Cartão</Button>
-          </div>
-        </Card>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input 
+                label="Nome do Cartão" 
+                value={newCard.name} 
+                onChange={e => setNewCard({...newCard, name: e.target.value})}
+                autoFocus
+                required
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <Input 
+                  label="Fechamento (Dia)" 
+                  type="number" min="1" max="31"
+                  value={newCard.closingDay} 
+                  onChange={e => setNewCard({...newCard, closingDay: parseInt(e.target.value)})}
+                  required
+                />
+                <Input 
+                  label="Vencimento (Dia)" 
+                  type="number" min="1" max="31"
+                  value={newCard.dueDay} 
+                  onChange={e => setNewCard({...newCard, dueDay: parseInt(e.target.value)})}
+                  required
+                />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <label className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Cor do Cartão</label>
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="color" 
+                    value={newCard.color}
+                    onChange={e => setNewCard({...newCard, color: e.target.value})}
+                    className="h-12 w-full rounded-xl cursor-pointer bg-zinc-900 border border-zinc-800 p-1"
+                  />
+                  <div className="w-12 h-12 rounded-xl shrink-0" style={{ backgroundColor: newCard.color }} />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6">
+              <Button variant="ghost" onClick={() => setIsAdding(false)} className="w-full sm:w-auto">Cancelar</Button>
+              <Button onClick={handleAdd} className="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-400 text-black font-bold">
+                Salvar Cartão
+              </Button>
+            </div>
+          </motion.div>
+        </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {cards.map(card => (
-          <Card key={card.id} className="relative overflow-hidden group">
+          <Card key={card.id} className="relative overflow-hidden group p-4 sm:p-5">
             <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: card.color }} />
             
             {editingId === card.id ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <Input 
                   label="Nome"
                   value={editForm.name} 
                   onChange={e => setEditForm({...editForm, name: e.target.value})}
                 />
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   <Input 
                     label="Fech."
                     type="number"
@@ -108,7 +132,7 @@ export const Cards = () => {
                     type="color" 
                     value={editForm.color}
                     onChange={e => setEditForm({...editForm, color: e.target.value})}
-                    className="h-8 w-8 rounded cursor-pointer bg-transparent border-none"
+                    className="h-10 w-10 rounded-xl cursor-pointer bg-zinc-900 border border-zinc-800 p-1"
                   />
                   <div className="flex gap-2">
                     <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancelar</Button>
@@ -120,7 +144,7 @@ export const Cards = () => {
               <>
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h4 className="font-semibold text-zinc-100">{card.name}</h4>
+                    <h4 className="font-semibold text-zinc-100 text-base sm:text-lg">{card.name}</h4>
                     <div className="flex gap-3 text-xs text-zinc-500 mt-1">
                       <span>Fecha dia {card.closingDay}</span>
                       <span>Vence dia {card.dueDay}</span>
@@ -131,11 +155,11 @@ export const Cards = () => {
                   </div>
                 </div>
                 
-                <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity pt-2 border-t border-zinc-800/50 mt-2">
-                  <button onClick={() => startEdit(card)} className="p-2 text-zinc-400 hover:text-yellow-500 hover:bg-zinc-800 rounded-lg">
+                <div className="flex justify-end gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity pt-2 border-t border-zinc-800/50 mt-2">
+                  <button onClick={() => startEdit(card)} className="p-2 text-zinc-400 hover:text-yellow-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center">
                     <Edit2 className="w-4 h-4" />
                   </button>
-                  <button onClick={() => deleteCard(card.id)} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-zinc-800 rounded-lg">
+                  <button onClick={() => deleteCard(card.id)} className="p-2 text-zinc-400 hover:text-red-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>

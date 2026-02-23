@@ -204,35 +204,41 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-zinc-100">Despesas</h2>
-        <div className="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800">
+        <div className="flex bg-zinc-900 p-1 rounded-xl border border-zinc-800 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('manual')}
             className={cn(
-              "px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
+              "flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 whitespace-nowrap",
               activeTab === 'manual' ? "bg-yellow-500/10 text-yellow-500" : "text-zinc-400 hover:text-zinc-200"
             )}
           >
-            <List className="w-4 h-4" /> Manual
+            <List className="w-4 h-4" /> 
+            <span className="hidden sm:inline">Manual</span>
+            <span className="sm:hidden">Manual</span>
           </button>
           <button
             onClick={() => setActiveTab('fixed')}
             className={cn(
-              "px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
+              "flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 whitespace-nowrap",
               activeTab === 'fixed' ? "bg-yellow-500/10 text-yellow-500" : "text-zinc-400 hover:text-zinc-200"
             )}
           >
-            <Calendar className="w-4 h-4" /> Fixas
+            <Calendar className="w-4 h-4" /> 
+            <span className="hidden sm:inline">Fixas</span>
+            <span className="sm:hidden">Fixas</span>
           </button>
           <button
             onClick={() => setActiveTab('chat')}
             className={cn(
-              "px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
+              "flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 whitespace-nowrap",
               activeTab === 'chat' ? "bg-yellow-500/10 text-yellow-500" : "text-zinc-400 hover:text-zinc-200"
             )}
           >
-            <MessageSquare className="w-4 h-4" /> Chat IA
+            <MessageSquare className="w-4 h-4" /> 
+            <span className="hidden sm:inline">Chat IA</span>
+            <span className="sm:hidden">IA</span>
           </button>
         </div>
       </div>
@@ -241,16 +247,16 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
         user ? (
           <ExpenseChat />
         ) : (
-          <div className="relative h-[600px] bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden flex items-center justify-center p-8 text-center">
-            <div className="max-w-xs space-y-4">
-              <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center text-yellow-500 mx-auto">
-                <MessageSquare className="w-8 h-8" />
+          <div className="relative h-[400px] sm:h-[600px] bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden flex items-center justify-center p-6 sm:p-8 text-center">
+            <div className="max-w-xs w-full space-y-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-yellow-500/10 rounded-full flex items-center justify-center text-yellow-500 mx-auto">
+                <MessageSquare className="w-6 h-6 sm:w-8 sm:h-8" />
               </div>
-              <h3 className="text-xl font-bold text-zinc-100">Chat IA Bloqueado</h3>
-              <p className="text-zinc-400 text-sm">
+              <h3 className="text-lg sm:text-xl font-bold text-zinc-100">Chat IA Bloqueado</h3>
+              <p className="text-zinc-400 text-xs sm:text-sm">
                 Faça login para usar nossa inteligência artificial e lançar gastos por texto ou voz.
               </p>
-              <Button onClick={() => setShowLoginModal(true)} className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold">
+              <Button onClick={() => setShowLoginModal(true)} className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3">
                 Fazer Login
               </Button>
             </div>
@@ -258,7 +264,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
         )
       ) : (
         <>
-          <Card className="border-yellow-500/50">
+          <Card className="border-yellow-500/50 p-4 sm:p-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {activeTab === 'manual' && (
@@ -390,7 +396,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-3">
               {filteredExpenses.length === 0 ? (
                 <div className="text-center py-10 text-zinc-500">Nenhuma compra neste mês.</div>
               ) : (
@@ -399,30 +405,30 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
                   const card = cards.find(c => c.id === exp.paymentMethod);
                   
                   return (
-                    <div key={exp.id} className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl flex items-center justify-between group">
-                      <div className="flex items-center gap-4">
+                    <div key={exp.id} className="bg-zinc-900/50 border border-zinc-800 p-3 sm:p-4 rounded-xl flex items-center justify-between group">
+                      <div className="flex items-center gap-3 sm:gap-4">
                         <div className="p-2 bg-red-500/10 rounded-lg text-red-500">
-                          {card ? <CardIcon className="w-5 h-5" /> : <DollarSign className="w-5 h-5" />}
+                          {card ? <CardIcon className="w-4 h-4 sm:w-5 sm:h-5" /> : <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />}
                         </div>
                         <div>
-                          <h4 className="font-medium text-zinc-200">{exp.title}</h4>
-                          <div className="flex gap-2 text-xs text-zinc-500">
-                            <span>{format(parseISO(exp.purchaseDate), 'dd/MM/yyyy')}</span>
+                          <h4 className="font-medium text-zinc-200 text-sm sm:text-base">{exp.title}</h4>
+                          <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] sm:text-xs text-zinc-500">
+                            <span>{format(parseISO(exp.purchaseDate), 'dd/MM/yy')}</span>
                             <span className="text-zinc-600">•</span>
                             <span style={{ color: category?.color }}>{category?.name}</span>
                             {exp.type === 'fixed' && <span className="text-emerald-500">• Fixa</span>}
                             {exp.installments && (
                               <>
                                 <span className="text-zinc-600">•</span>
-                                <span className="text-yellow-500">{exp.installments.total}x de {formatCurrency(exp.installmentValue)}</span>
+                                <span className="text-yellow-500">{exp.installments.total}x</span>
                               </>
                             )}
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="font-bold text-zinc-200">{formatCurrency(exp.totalValue)}</span>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      <div className="flex items-center gap-2 sm:gap-4">
+                        <span className="font-bold text-zinc-200 text-sm sm:text-base">{formatCurrency(exp.totalValue)}</span>
+                        <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                           <button 
                             onClick={() => {
                               setFormData({
@@ -440,13 +446,13 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
                               setActiveTab(exp.type === 'fixed' ? 'fixed' : 'manual');
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
-                            className="p-2 text-zinc-600 hover:text-yellow-500 hover:bg-zinc-800 rounded-lg"
+                            className="p-2 text-zinc-600 hover:text-yellow-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => deleteExpense(exp.id)}
-                            className="p-2 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded-lg"
+                            className="p-2 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

@@ -132,52 +132,59 @@ function App() {
       </aside>
 
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-zinc-950 border-b border-zinc-800 z-40 flex items-center justify-between px-4">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-zinc-950 border-b border-zinc-800 z-50 flex items-center justify-between px-4">
         <h1 className="text-xl font-bold text-yellow-500">FluxoNext</h1>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-zinc-400">
-          <Menu className="w-6 h-6" />
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-zinc-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
+          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>
 
       {/* Mobile Menu */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-30 bg-black/90 pt-20 px-4 flex flex-col">
-          <nav className="flex-1 space-y-2">
-            {navItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setCurrentView(item.id);
-                  setIsMobileMenuOpen(false);
-                  if (item.id !== 'expenses') setEditingExpenseId(null);
-                }}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-4 rounded-xl text-lg font-medium transition-all",
-                  currentView === item.id 
-                    ? "bg-yellow-500 text-black" 
-                    : "text-zinc-400 hover:text-zinc-100 bg-zinc-900"
-                )}
-              >
-                <item.icon className="w-6 h-6" />
-                {item.label}
-              </button>
-            ))}
-          </nav>
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div 
+            initial={{ opacity: 0, x: -100 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -100 }}
+            className="md:hidden fixed inset-0 z-40 bg-black pt-20 px-4 flex flex-col"
+          >
+            <nav className="flex-1 space-y-2 overflow-y-auto no-scrollbar pb-4">
+              {navItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setCurrentView(item.id);
+                    setIsMobileMenuOpen(false);
+                    if (item.id !== 'expenses') setEditingExpenseId(null);
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-4 rounded-xl text-lg font-medium transition-all",
+                    currentView === item.id 
+                      ? "bg-yellow-500 text-black" 
+                      : "text-zinc-400 hover:text-zinc-100 bg-zinc-900"
+                  )}
+                >
+                  <item.icon className="w-6 h-6" />
+                  {item.label}
+                </button>
+              ))}
+            </nav>
 
-          <div className="pb-8 pt-4 border-t border-zinc-800">
-            <UserMenu 
-              user={user}
-              syncing={syncing}
-              onSync={handleManualSync}
-              onExport={handleExport}
-              onImport={handleImport}
-              onClear={() => setIsClearModalOpen(true)}
-              onLogin={() => setShowLoginModal(true)}
-              fileInputRef={fileInputRef}
-            />
-          </div>
-        </div>
-      )}
+            <div className="pb-8 pt-4 border-t border-zinc-800">
+              <UserMenu 
+                user={user}
+                syncing={syncing}
+                onSync={handleManualSync}
+                onExport={handleExport}
+                onImport={handleImport}
+                onClear={() => setIsClearModalOpen(true)}
+                onLogin={() => setShowLoginModal(true)}
+                fileInputRef={fileInputRef}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <main className="md:pl-64 pt-16 md:pt-0 min-h-screen pb-24 md:pb-8">
@@ -203,8 +210,9 @@ function App() {
         onClick={() => {
           setCurrentView('expenses');
           setEditingExpenseId(null);
+          setIsMobileMenuOpen(false);
         }}
-        className="fixed bottom-6 right-6 h-14 w-14 bg-yellow-500 rounded-full shadow-lg flex items-center justify-center text-black z-50 hover:bg-yellow-400 transition-colors shadow-yellow-500/20"
+        className="fixed bottom-6 right-6 h-14 w-14 bg-yellow-500 rounded-full shadow-lg flex items-center justify-center text-black z-30 hover:bg-yellow-400 transition-colors shadow-yellow-500/20"
       >
         <PlusCircle className="w-8 h-8" />
       </motion.button>

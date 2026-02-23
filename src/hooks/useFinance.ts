@@ -35,11 +35,13 @@ interface FinanceData {
   cards: CreditCard[];
   cardPayments: CardPaymentStatus[];
   lastUsedPaymentMethod: string;
+  lastUpdated?: string; // ISO string
 }
 
 export const useFinance = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [data, setData] = useState<FinanceData>(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -80,43 +82,77 @@ export const useFinance = () => {
   }, []);
 
   // Fetch from Supabase when user logs in
-  useEffect(() => {
-    const fetchSupabaseData = async () => {
-      if (!user) return;
-      
+  const syncDataWithCloud = useCallback(async () => {
+    if (!user) return;
+    setSyncing(true);
+    
+    try {
       const { data: dbData, error } = await supabase
         .from('user_finance')
-        .select('data')
+        .select('data, updated_at')
         .eq('user_id', user.id)
         .single();
 
+      const localDataStr = localStorage.getItem(STORAGE_KEY);
+      const localData: FinanceData | null = localDataStr ? JSON.parse(localDataStr) : null;
+
       if (dbData && !error) {
-        setData(dbData.data);
+        const cloudData = dbData.data as FinanceData;
+        const cloudUpdatedAt = new Date(dbData.updated_at).getTime();
+        const localUpdatedAt = localData?.lastUpdated ? new Date(localData.lastUpdated).getTime() : 0;
+
+        if (localUpdatedAt > cloudUpdatedAt) {
+          // Local is newer, push to cloud
+          await supabase.from('user_finance').upsert({ 
+            user_id: user.id, 
+            data: localData,
+            updated_at: new Date().toISOString()
+          });
+          setData(localData!);
+        } else {
+          // Cloud is newer or equal, pull from cloud
+          setData(cloudData);
+        }
       } else if (error && error.code === 'PGRST116') {
-        // No data found, sync local to cloud
-        const localData = localStorage.getItem(STORAGE_KEY);
+        // No data found in cloud, push local to cloud
         if (localData) {
-          const parsed = JSON.parse(localData);
-          await supabase.from('user_finance').insert({ user_id: user.id, data: parsed });
+          await supabase.from('user_finance').insert({ 
+            user_id: user.id, 
+            data: localData,
+            updated_at: new Date().toISOString()
+          });
         }
       }
-    };
-
-    fetchSupabaseData();
+    } catch (err) {
+      console.error('Sync error:', err);
+    } finally {
+      setSyncing(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      syncDataWithCloud();
+    }
+  }, [user, syncDataWithCloud]);
 
   // Persist to localStorage and Supabase
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    const updatedData = { ...data, lastUpdated: new Date().toISOString() };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
     
     const saveToSupabase = async () => {
       if (!user) return;
       await supabase
         .from('user_finance')
-        .upsert({ user_id: user.id, data }, { onConflict: 'user_id' });
+        .upsert({ 
+          user_id: user.id, 
+          data: updatedData,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
     };
 
-    const timeout = setTimeout(saveToSupabase, 1000); // Debounce saves
+    const timeout = setTimeout(saveToSupabase, 2000); // Debounce saves
     return () => clearTimeout(timeout);
   }, [data, user]);
 
@@ -409,6 +445,8 @@ export const useFinance = () => {
   return {
     user,
     loading,
+    syncing,
+    syncDataWithCloud,
     incomes: data.incomes,
     expenses: data.expenses,
     incomeCategories: data.incomeCategories,

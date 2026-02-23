@@ -15,7 +15,7 @@ import { motion } from 'motion/react';
 type View = 'home' | 'income' | 'expenses' | 'dashboard' | 'cards' | 'categories';
 
 function App() {
-  const { user, loading } = useFinance();
+  const { user, loading, syncing, syncDataWithCloud } = useFinance();
   const [currentView, setCurrentView] = useState<View>('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
@@ -110,6 +110,8 @@ function App() {
         <div className="p-4 border-t border-zinc-800">
           <UserMenu 
             user={user}
+            syncing={syncing}
+            onSync={syncDataWithCloud}
             onExport={handleExport}
             onImport={handleImport}
             onClear={() => setIsClearModalOpen(true)}
@@ -155,6 +157,8 @@ function App() {
           <div className="pb-8 pt-4 border-t border-zinc-800">
             <UserMenu 
               user={user}
+              syncing={syncing}
+              onSync={syncDataWithCloud}
               onExport={handleExport}
               onImport={handleImport}
               onClear={() => setIsClearModalOpen(true)}

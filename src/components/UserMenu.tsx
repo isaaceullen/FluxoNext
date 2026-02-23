@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Download, Upload, Trash2, ChevronUp, LogOut, LogIn, User as UserIcon } from 'lucide-react';
+import { Download, Upload, Trash2, ChevronUp, LogOut, LogIn, User as UserIcon, Cloud, RefreshCw, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../utils';
 import { supabase } from '../lib/supabase';
@@ -7,6 +7,8 @@ import { User } from '@supabase/supabase-js';
 
 interface UserMenuProps {
   user: User | null;
+  syncing?: boolean;
+  onSync?: () => void;
   onExport: () => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
@@ -14,7 +16,7 @@ interface UserMenuProps {
   fileInputRef: React.RefObject<HTMLInputElement>;
 }
 
-export const UserMenu = ({ user, onExport, onImport, onClear, onLogin, fileInputRef }: UserMenuProps) => {
+export const UserMenu = ({ user, syncing, onSync, onExport, onImport, onClear, onLogin, fileInputRef }: UserMenuProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -31,13 +33,29 @@ export const UserMenu = ({ user, onExport, onImport, onClear, onLogin, fileInput
           className="absolute bottom-full left-0 right-0 mb-2 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden z-50"
         >
           {user ? (
-            <button 
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800"
-            >
-              <LogOut className="w-4 h-4 text-red-500" />
-              Sair da Conta
-            </button>
+            <>
+              <div className="px-4 py-2 text-[10px] uppercase tracking-wider text-zinc-500 font-bold bg-zinc-950/50">
+                Conta Cloud
+              </div>
+              <button 
+                onClick={() => {
+                  onSync?.();
+                  setIsOpen(false);
+                }}
+                disabled={syncing}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800 disabled:opacity-50"
+              >
+                <RefreshCw className={cn("w-4 h-4 text-emerald-500", syncing && "animate-spin")} />
+                {syncing ? 'Sincronizando...' : 'Sincronizar com a Nuvem'}
+              </button>
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800"
+              >
+                <LogOut className="w-4 h-4 text-red-500" />
+                Sair da Conta
+              </button>
+            </>
           ) : (
             <button 
               onClick={() => {
@@ -51,6 +69,9 @@ export const UserMenu = ({ user, onExport, onImport, onClear, onLogin, fileInput
             </button>
           )}
           
+          <div className="px-4 py-2 text-[10px] uppercase tracking-wider text-zinc-500 font-bold bg-zinc-950/50">
+            Manutenção Local
+          </div>
           <button 
             onClick={onExport}
             className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800"

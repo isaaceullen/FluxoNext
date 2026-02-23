@@ -54,6 +54,7 @@ export interface Expense {
   originalId?: string; // To link installments
   // For Fixed
   valueHistory?: ValueHistoryItem[];
+  createdAt?: string; // ISO string
 }
 
 export interface CardPaymentStatus {

@@ -13,7 +13,6 @@ export const LoginModal = ({ onClose }: LoginModalProps) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,14 +20,8 @@ export const LoginModal = ({ onClose }: LoginModalProps) => {
     setError(null);
 
     try {
-      if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
-        alert('Verifique seu email para confirmar o cadastro!');
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
       onClose();
     } catch (err: any) {
       setError(err.message);
@@ -54,12 +47,10 @@ export const LoginModal = ({ onClose }: LoginModalProps) => {
 
           <div className="text-center mb-8">
             <h2 className="text-2xl font-bold text-zinc-100">
-              {mode === 'login' ? 'Bem-vindo de volta' : 'Crie sua conta'}
+              Bem-vindo de volta
             </h2>
             <p className="text-sm text-zinc-500 mt-2">
-              {mode === 'login' 
-                ? 'Acesse seus dados de qualquer lugar' 
-                : 'Comece a controlar suas finanças hoje'}
+              Acesse seus dados de qualquer lugar
             </p>
           </div>
 
@@ -97,21 +88,10 @@ export const LoginModal = ({ onClose }: LoginModalProps) => {
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                mode === 'login' ? 'Entrar' : 'Cadastrar'
+                'Entrar'
               )}
             </Button>
           </form>
-
-          <div className="mt-6 text-center">
-            <button 
-              onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-              className="text-sm text-zinc-400 hover:text-yellow-500 transition-colors"
-            >
-              {mode === 'login' 
-                ? 'Não tem uma conta? Cadastre-se' 
-                : 'Já tem uma conta? Entre agora'}
-            </button>
-          </div>
         </Card>
       </motion.div>
     </div>

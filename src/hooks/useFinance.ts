@@ -171,7 +171,7 @@ export const useFinance = () => {
   const addExpense = (expense: Omit<Expense, 'id'>) => {
     setData(prev => ({
       ...prev,
-      expenses: [...prev.expenses, { ...expense, id: uuidv4() }]
+      expenses: [...prev.expenses, { ...expense, id: uuidv4(), createdAt: new Date().toISOString() }]
     }));
   };
 
@@ -183,6 +183,7 @@ export const useFinance = () => {
     const newExpenses: Expense[] = [];
     const originalId = uuidv4();
     const startDate = parseISO(`${startBillingMonth}-01`);
+    const createdAt = new Date().toISOString();
 
     for (let i = 0; i < totalInstallments; i++) {
       const billingDate = addMonths(startDate, i);
@@ -194,6 +195,7 @@ export const useFinance = () => {
         type: 'installment',
         billingMonth,
         originalId,
+        createdAt,
         installments: {
           current: i + 1,
           total: totalInstallments

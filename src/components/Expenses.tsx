@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useFinance } from '../hooks/useFinance';
 import { Card, Button, Input, Select } from './ui';
-import { Plus, Trash2, Calendar, CreditCard as CardIcon, DollarSign, MessageSquare, List, Send, Check, Edit2, ArrowLeft, ArrowRight, ChevronDown, X } from 'lucide-react';
+import { Plus, Trash2, Calendar, CreditCard as CardIcon, DollarSign, MessageSquare, List, Send, Check, Edit2, ArrowLeft, ArrowRight, ChevronDown, X, Search, Filter } from 'lucide-react';
 import { formatCurrency, cn } from '../utils';
 import { format, parseISO, addMonths, subMonths, eachMonthOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -25,9 +25,16 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     setLastUsedPaymentMethod,
     getExpenseValueForMonth
   } = useFinance();
-  const [activeTab, setActiveTab] = useState<'manual' | 'fixed' | 'chat'>('chat');
+  const [activeTab, setActiveTab] = useState<'manual' | 'fixed' | 'chat'>('manual');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Default tab logic based on login
+  React.useEffect(() => {
+    if (user) setActiveTab('chat');
+    else setActiveTab('manual');
+  }, [user]);
   
   // View State (for the list below)
   const [viewMonth, setViewMonth] = useState(format(addMonths(new Date(), 1), 'yyyy-MM')); // YYYY-MM
@@ -219,8 +226,23 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
   const filteredExpenses = expenses.map(e => {
     const { value, paymentMethod } = getExpenseValueForMonth(e, viewMonth);
     return { ...e, currentMonthValue: value, currentMonthPaymentMethod: paymentMethod };
-  }).filter(e => e.currentMonthValue > 0)
-    .sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime());
+  }).filter(e => {
+    if (e.currentMonthValue <= 0) return false;
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const category = expenseCategories.find(c => c.id === e.categoryId);
+      return e.title.toLowerCase().includes(query) || category?.name.toLowerCase().includes(query);
+    }
+    return true;
+  }).sort((a, b) => {
+    // Sort by createdAt desc (newest created first)
+    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    if (dateA !== dateB) return dateB - dateA;
+    
+    // Fallback to purchaseDate if createdAt is missing
+    return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime();
+  });
 
   return (
     <div className="space-y-6">
@@ -406,6 +428,22 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
           </Card>
 
           <div className="space-y-4">
+            {/* Search and Filter Bar */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                <Input 
+                  placeholder="Buscar despesa..." 
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="pl-9" 
+                />
+              </div>
+              <Button variant="secondary" size="icon" className="shrink-0">
+                <Filter className="w-4 h-4" />
+              </Button>
+            </div>
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <h3 className="text-lg font-semibold text-zinc-300">Visão da Fatura</h3>
               

@@ -1,5 +1,4 @@
 {
   "name": "FluxoNext",
   "description": "Personal finance app focused on next month's cash flow with AI integration.",
-  "requestFramePermissions": ["microphone"]
 }

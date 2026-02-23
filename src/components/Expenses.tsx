@@ -960,7 +960,7 @@ const ExpenseChat = () => {
       </div>
 
       <div className="p-4 border-t border-zinc-800 bg-zinc-950">
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2">
           <Input 
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -968,7 +968,6 @@ const ExpenseChat = () => {
             placeholder="Digite seu gasto..."
             className="bg-zinc-900 border-zinc-800 focus:ring-yellow-500/20"
           />
-          
           <Button size="icon" onClick={handleSend} disabled={isLoading || !input.trim()}>
             <Send className="w-4 h-4" />
           </Button>

@@ -10,6 +10,20 @@ import { ExtractedData, Expense } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { LoginModal } from './LoginModal';
 
+interface FilterState {
+  categoryId: string;
+  paymentMethod: string;
+  minValue: string;
+  maxValue: string;
+}
+
+const initialFilters: FilterState = {
+  categoryId: '',
+  paymentMethod: '',
+  minValue: '',
+  maxValue: '',
+};
+
 export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseId?: string | null, onClearEditing?: () => void }) => {
   const { 
     user,
@@ -29,6 +43,8 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<FilterState>(initialFilters);
 
   // Default tab logic based on login
   React.useEffect(() => {
@@ -228,11 +244,22 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     return { ...e, currentMonthValue: value, currentMonthPaymentMethod: paymentMethod };
   }).filter(e => {
     if (e.currentMonthValue <= 0) return false;
+    
+    // Search Query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const category = expenseCategories.find(c => c.id === e.categoryId);
-      return e.title.toLowerCase().includes(query) || category?.name.toLowerCase().includes(query);
+      if (!e.title.toLowerCase().includes(query) && !category?.name.toLowerCase().includes(query)) {
+        return false;
+      }
     }
+
+    // Active Filters
+    if (activeFilters.categoryId && e.categoryId !== activeFilters.categoryId) return false;
+    if (activeFilters.paymentMethod && e.currentMonthPaymentMethod !== activeFilters.paymentMethod) return false;
+    if (activeFilters.minValue && e.currentMonthValue < parseFloat(activeFilters.minValue)) return false;
+    if (activeFilters.maxValue && e.currentMonthValue > parseFloat(activeFilters.maxValue)) return false;
+
     return true;
   }).sort((a, b) => {
     // Sort by createdAt desc (newest created first)
@@ -439,8 +466,16 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
                   className="pl-9" 
                 />
               </div>
-              <Button variant="secondary" size="icon" className="shrink-0">
+              <Button 
+                variant="secondary" 
+                size="icon" 
+                className="shrink-0 relative"
+                onClick={() => setIsFilterModalOpen(true)}
+              >
                 <Filter className="w-4 h-4" />
+                {Object.values(activeFilters).some(v => v !== '') && (
+                  <span className="absolute top-2 right-2 w-2 h-2 bg-yellow-500 rounded-full" />
+                )}
               </Button>
             </div>
 
@@ -567,6 +602,15 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
         </>
       )}
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
+      
+      <FilterModal 
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        onApply={setActiveFilters}
+        initialFilters={activeFilters}
+        categories={expenseCategories}
+        cards={cards}
+      />
 
       {/* Installment Edit Modal */}
       <AnimatePresence>
@@ -631,6 +675,116 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
           </div>
         )}
       </AnimatePresence>
+    </div>
+  );
+};
+
+const FilterModal = ({ 
+  isOpen, 
+  onClose, 
+  onApply, 
+  initialFilters, 
+  categories, 
+  cards 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onApply: (filters: FilterState) => void; 
+  initialFilters: FilterState;
+  categories: any[];
+  cards: any[];
+}) => {
+  const [filters, setFilters] = useState(initialFilters);
+
+  // Reset local state when modal opens
+  React.useEffect(() => {
+    if (isOpen) setFilters(initialFilters);
+  }, [isOpen, initialFilters]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-md"
+      >
+        <Card className="relative border-zinc-800 shadow-2xl bg-zinc-950">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-zinc-100">Filtrar Despesas</h3>
+            <button onClick={onClose} className="p-2 text-zinc-500 hover:text-zinc-200 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <Select
+              label="Categoria"
+              value={filters.categoryId}
+              onChange={e => setFilters({ ...filters, categoryId: e.target.value })}
+            >
+              <option value="">Todas as Categorias</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Select>
+
+            <Select
+              label="Método de Pagamento"
+              value={filters.paymentMethod}
+              onChange={e => setFilters({ ...filters, paymentMethod: e.target.value })}
+            >
+              <option value="">Todos</option>
+              <option value="cash">Dinheiro / Débito</option>
+              {cards.map(c => (
+                <option key={c.id} value={c.id}>Cartão: {c.name}</option>
+              ))}
+            </Select>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Valor Mínimo"
+                type="number"
+                placeholder="0,00"
+                value={filters.minValue}
+                onChange={e => setFilters({ ...filters, minValue: e.target.value })}
+              />
+              <Input
+                label="Valor Máximo"
+                type="number"
+                placeholder="0,00"
+                value={filters.maxValue}
+                onChange={e => setFilters({ ...filters, maxValue: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-8">
+            <Button 
+              variant="outline" 
+              className="flex-1"
+              onClick={() => {
+                const empty = { categoryId: '', paymentMethod: '', minValue: '', maxValue: '' };
+                setFilters(empty);
+                onApply(empty);
+                onClose();
+              }}
+            >
+              Limpar
+            </Button>
+            <Button 
+              className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-bold"
+              onClick={() => {
+                onApply(filters);
+                onClose();
+              }}
+            >
+              Aplicar Filtros
+            </Button>
+          </div>
+        </Card>
+      </motion.div>
     </div>
   );
 };

@@ -8,20 +8,23 @@ export const parseTransactionText = async (
   text: string, 
   history: { role: 'user' | 'ai'; content: string }[] = [],
   categories: string[] = [],
+  cards: string[] = [],
   today: string = new Date().toISOString()
 ): Promise<ExtractedData> => {
   try {
     const model = "gemini-3-flash-preview";
-    const currentYear = new Date().getFullYear();
     
     const prompt = `
-      Você é um tutor financeiro do app FluxoNext. Hoje é ${today}.
-      Ao receber uma mensagem, analise o histórico para entender se é um novo gasto ou uma CORREÇÃO do gasto anterior.
+      Você é o assistente financeiro do FluxoNext. Hoje é ${today}.
+      Use o histórico de mensagens para entender se o usuário está enviando um NOVO gasto ou CORRIGINDO o anterior (ex: 'mude o valor para 50').
       
-      Regra de Ano: Se o usuário disser apenas o mês (ex: 'Junho'), use o ano atual (${currentYear}), a menos que ele especifique o ano.
-      Regra de Categorias: Use APENAS as categorias reais do usuário: [${categories.join(', ')}]. Se não tiver certeza, retorne 'category': null.
+      Categorias Disponíveis: ${categories.join(', ')}.
+      Cartões Disponíveis: ${cards.join(', ')}.
       
-      Retorne EXCLUSIVAMENTE um JSON com este formato:
+      REGRAS: 
+      - Se não tiver certeza da categoria ou cartão, retorne null no JSON.
+      - Se o usuário citar apenas o mês (ex: 'Junho'), use o ano atual de ${today}.
+      - Retorne EXCLUSIVAMENTE um JSON com este formato:
       {
         "name": "Nome curto do gasto",
         "value": Valor numérico (ex: 50.00),

@@ -850,8 +850,9 @@ const ExpenseChat = ({
     try {
       const history = messages; 
       const categories = expenseCategories.map(c => c.name);
+      const cardNames = cards.map(c => c.name);
       
-      const result = await parseTransactionText(userText, history, categories);
+      const result = await parseTransactionText(userText, history, categories, cardNames);
       setExtractedData(result);
       
       setMessages(prev => [...prev, { role: 'ai', content: 'Analisei seu gasto. Confira os dados abaixo e confirme.' }]);
@@ -972,36 +973,75 @@ const ExpenseChat = ({
                 value={extractedData.value || ''} 
                 onChange={e => updateData('value', parseFloat(e.target.value))} 
               />
-              <Select
-                label="Categoria"
-                value={expenseCategories.find(c => c.name === extractedData.category)?.id || ''}
-                onChange={e => {
-                  const cat = expenseCategories.find(c => c.id === e.target.value);
-                  updateData('category', cat?.name);
-                }}
-              >
-                <option value="">Selecione...</option>
-                {expenseCategories.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </Select>
-              <Select
-                label="Pagamento"
-                value={extractedData.paymentMethod === 'Dinheiro' ? 'cash' : (cards.find(c => c.name === extractedData.paymentMethod)?.id || 'cash')}
-                onChange={e => {
-                  const val = e.target.value;
-                  if (val === 'cash') updateData('paymentMethod', 'Dinheiro');
-                  else {
-                    const card = cards.find(c => c.id === val);
-                    updateData('paymentMethod', card?.name);
-                  }
-                }}
-              >
-                <option value="cash">Dinheiro</option>
-                {cards.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </Select>
+              
+              <div className="space-y-1">
+                <Select
+                  label="Categoria"
+                  value={expenseCategories.find(c => c.name === extractedData.category)?.id || ''}
+                  onChange={e => {
+                    const cat = expenseCategories.find(c => c.id === e.target.value);
+                    updateData('category', cat?.name);
+                  }}
+                >
+                  <option value="">Selecione...</option>
+                  {expenseCategories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </Select>
+                {!extractedData.category && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {expenseCategories.slice(0, 5).map(c => (
+                      <button 
+                        key={c.id}
+                        onClick={() => updateData('category', c.name)}
+                        className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <Select
+                  label="Pagamento"
+                  value={extractedData.paymentMethod === 'Dinheiro' ? 'cash' : (cards.find(c => c.name === extractedData.paymentMethod)?.id || 'cash')}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val === 'cash') updateData('paymentMethod', 'Dinheiro');
+                    else {
+                      const card = cards.find(c => c.id === val);
+                      updateData('paymentMethod', card?.name);
+                    }
+                  }}
+                >
+                  <option value="cash">Dinheiro</option>
+                  {cards.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </Select>
+                {(!extractedData.paymentMethod || extractedData.paymentMethod === 'Dinheiro') && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button 
+                      onClick={() => updateData('paymentMethod', 'Dinheiro')}
+                      className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
+                    >
+                      Dinheiro
+                    </button>
+                    {cards.map(c => (
+                      <button 
+                        key={c.id}
+                        onClick={() => updateData('paymentMethod', c.name)}
+                        className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <Input 
                 label="Data Compra" 
                 type="date"

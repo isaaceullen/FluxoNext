@@ -6,19 +6,13 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export const parseTransactionText = async (
   text: string, 
-  history: any[] = [],
+  history: { role: 'user' | 'ai'; content: string }[] = [],
   categories: string[] = [],
   cards: string[] = [],
   today: string = new Date().toISOString()
 ): Promise<ExtractedData> => {
   try {
     const model = "gemini-3-flash-preview";
-    
-    // Filtra o histórico para enviar apenas texto útil para a IA
-    const cleanHistory = history
-      .filter(m => typeof m.content === 'string')
-      .map(m => `${m.role.toUpperCase()}: ${m.content}`)
-      .join('\n');
     
     const prompt = `
       Você é o assistente financeiro do FluxoNext. Hoje é ${today}.
@@ -28,16 +22,17 @@ export const parseTransactionText = async (
       Cartões Disponíveis: ${cards.join(', ')}.
       
       REGRAS: 
-      - Se não tiver certeza da categoria ou cartão, retorne null.
-      - Se o usuário citar apenas o mês (ex: 'Junho'), use o ano atual de ${today}, a menos que ele especifique outro.
+      - Se não tiver certeza da categoria ou cartão, retorne null no JSON.
+      - Se o usuário citar apenas o mês (ex: 'Junho'), use o ano atual de ${today}.
+      - REGRA DA FATURA (billingMonth): O mês da fatura DEVE ser SEMPRE o mês SEGUINTE ao da data da compra (purchaseDate). Exemplo: se a compra foi em Fevereiro, a fatura é em Março. Aplique essa regra matematicamente em todos os casos, a menos que o usuário exija explicitamente um mês de fatura diferente.
       - PARCELAMENTO: Aja de forma lógica. Se o usuário disser "1000 em 10x", o valor total é 1000 e parcelas é 10. Se ele disser "10x de 150", o valor total é 1500 e parcelas é 10. Sempre retorne o 'value' como o VALOR TOTAL.
       
-      Retorne EXCLUSIVAMENTE um JSON com este formato exato:
+      Retorne EXCLUSIVAMENTE um JSON com este formato:
       {
         "name": "Nome curto do gasto",
-        "value": Valor TOTAL numérico (ex: 1500.00),
-        "category": "Nome exato da categoria ou null",
-        "paymentMethod": "Nome exato do cartão ou 'Dinheiro' ou null",
+        "value": Valor TOTAL numérico (ex: 50.00),
+        "category": "Nome da categoria inferida ou null",
+        "paymentMethod": "Nome do cartão ou 'Dinheiro'",
         "purchaseDate": "YYYY-MM-DD",
         "billingMonth": "YYYY-MM",
         "isInstallment": true ou false,
@@ -45,7 +40,7 @@ export const parseTransactionText = async (
       }
 
       Histórico da conversa:
-      ${cleanHistory}
+      ${history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}
       
       Nova mensagem do usuário: "${text}"
     `;

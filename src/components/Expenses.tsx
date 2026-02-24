@@ -848,7 +848,7 @@ const ExpenseChat = ({
     setExtractedData(null);
 
     try {
-      const history = messages; 
+      const history = newMessages; 
       const categories = expenseCategories.map(c => c.name);
       const cardNames = cards.map(c => c.name);
       
@@ -903,6 +903,11 @@ const ExpenseChat = ({
     setLastUsedPaymentMethod(paymentMethod);
     setMessages(prev => [...prev, { role: 'ai', content: 'Lançamento salvo com sucesso!' }]);
     setExtractedData(null);
+    // Focus input after confirm
+    setTimeout(() => {
+      const inputEl = document.querySelector('input[placeholder="Digite seu gasto..."]') as HTMLInputElement;
+      if (inputEl) inputEl.focus();
+    }, 100);
   };
 
   // Helper to fill missing data
@@ -913,10 +918,10 @@ const ExpenseChat = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
       {/* Chat Area */}
-      <div className="h-[300px] bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col">
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl flex flex-col relative">
+        <div className="p-4 space-y-4 min-h-[200px] max-h-[60vh] overflow-y-auto">
           {messages.map((msg, idx) => (
             <div key={idx} className={cn("flex", msg.role === 'user' ? "justify-end" : "justify-start")}>
               <div className={cn(
@@ -930,17 +935,139 @@ const ExpenseChat = ({
             </div>
           ))}
           {isLoading && <div className="text-zinc-500 text-sm animate-pulse">Digitando...</div>}
+
+          {/* Confirmation Card Inside Chat */}
+          {extractedData && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full"
+            >
+              <Card className="border-yellow-500/50 p-4 bg-zinc-900/80 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-zinc-100">Confirmar Lançamento</h3>
+                  <Button size="sm" variant="ghost" onClick={() => setExtractedData(null)}><X className="w-4 h-4" /></Button>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input 
+                    label="Nome" 
+                    value={extractedData.name || ''} 
+                    onChange={e => updateData('name', e.target.value)} 
+                  />
+                  <Input 
+                    label="Valor" 
+                    type="number" 
+                    value={extractedData.value || ''} 
+                    onChange={e => updateData('value', parseFloat(e.target.value))} 
+                  />
+                  
+                  <div className="space-y-1">
+                    <Select
+                      label="Categoria"
+                      value={expenseCategories.find(c => c.name === extractedData.category)?.id || ''}
+                      onChange={e => {
+                        const cat = expenseCategories.find(c => c.id === e.target.value);
+                        updateData('category', cat?.name);
+                      }}
+                    >
+                      <option value="">Selecione...</option>
+                      {expenseCategories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </Select>
+                    {!extractedData.category && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {expenseCategories.slice(0, 5).map(c => (
+                          <button 
+                            key={c.id}
+                            onClick={() => updateData('category', c.name)}
+                            className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
+                          >
+                            {c.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <Select
+                      label="Pagamento"
+                      value={extractedData.paymentMethod === 'Dinheiro' ? 'cash' : (cards.find(c => c.name === extractedData.paymentMethod)?.id || 'cash')}
+                      onChange={e => {
+                        const val = e.target.value;
+                        if (val === 'cash') updateData('paymentMethod', 'Dinheiro');
+                        else {
+                          const card = cards.find(c => c.id === val);
+                          updateData('paymentMethod', card?.name);
+                        }
+                      }}
+                    >
+                      <option value="cash">Dinheiro</option>
+                      {cards.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </Select>
+                    {(!extractedData.paymentMethod || extractedData.paymentMethod === 'Dinheiro') && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <button 
+                          onClick={() => updateData('paymentMethod', 'Dinheiro')}
+                          className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
+                        >
+                          Dinheiro
+                        </button>
+                        {cards.map(c => (
+                          <button 
+                            key={c.id}
+                            onClick={() => updateData('paymentMethod', c.name)}
+                            className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
+                          >
+                            {c.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <Input 
+                    label="Data Compra" 
+                    type="date"
+                    value={extractedData.purchaseDate || ''} 
+                    onChange={e => updateData('purchaseDate', e.target.value)} 
+                  />
+                  <Input 
+                    label="Mês Fatura" 
+                    type="month"
+                    value={extractedData.billingMonth || ''} 
+                    onChange={e => updateData('billingMonth', e.target.value)} 
+                  />
+                </div>
+
+                {extractedData.isInstallment && (extractedData.installments || 1) > 1 && (
+                  <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 text-yellow-500 text-sm text-center font-medium">
+                    Será salvo como: {extractedData.installments}x de {formatCurrency((extractedData.value || 0) / (extractedData.installments || 1))}
+                  </div>
+                )}
+
+                <Button className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold" onClick={handleConfirm}>
+                  <Check className="w-4 h-4 mr-2" /> Confirmar Lançamento
+                </Button>
+              </Card>
+            </motion.div>
+          )}
+          
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-4 border-t border-zinc-800 bg-zinc-950">
+        <div className="p-4 border-t border-zinc-800 bg-zinc-950 rounded-b-2xl sticky bottom-0 z-10">
           <div className="flex gap-2 items-center">
             <Input 
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Digite seu gasto..."
-              className="bg-zinc-900 border-zinc-800 focus:ring-yellow-500/20"
+              className="bg-zinc-900 border-zinc-800 focus:ring-yellow-500/20 text-base"
             />
             <Button size="icon" onClick={handleSend} disabled={isLoading || !input.trim()}>
               <Send className="w-4 h-4" />
@@ -948,120 +1075,6 @@ const ExpenseChat = ({
           </div>
         </div>
       </div>
-
-      {/* Confirmation Card */}
-      {extractedData && (
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <Card className="border-yellow-500/50 p-4 bg-zinc-900/80 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-zinc-100">Confirmar Lançamento</h3>
-              <Button size="sm" variant="ghost" onClick={() => setExtractedData(null)}><X className="w-4 h-4" /></Button>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input 
-                label="Nome" 
-                value={extractedData.name || ''} 
-                onChange={e => updateData('name', e.target.value)} 
-              />
-              <Input 
-                label="Valor" 
-                type="number" 
-                value={extractedData.value || ''} 
-                onChange={e => updateData('value', parseFloat(e.target.value))} 
-              />
-              
-              <div className="space-y-1">
-                <Select
-                  label="Categoria"
-                  value={expenseCategories.find(c => c.name === extractedData.category)?.id || ''}
-                  onChange={e => {
-                    const cat = expenseCategories.find(c => c.id === e.target.value);
-                    updateData('category', cat?.name);
-                  }}
-                >
-                  <option value="">Selecione...</option>
-                  {expenseCategories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </Select>
-                {!extractedData.category && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {expenseCategories.slice(0, 5).map(c => (
-                      <button 
-                        key={c.id}
-                        onClick={() => updateData('category', c.name)}
-                        className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
-                      >
-                        {c.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <Select
-                  label="Pagamento"
-                  value={extractedData.paymentMethod === 'Dinheiro' ? 'cash' : (cards.find(c => c.name === extractedData.paymentMethod)?.id || 'cash')}
-                  onChange={e => {
-                    const val = e.target.value;
-                    if (val === 'cash') updateData('paymentMethod', 'Dinheiro');
-                    else {
-                      const card = cards.find(c => c.id === val);
-                      updateData('paymentMethod', card?.name);
-                    }
-                  }}
-                >
-                  <option value="cash">Dinheiro</option>
-                  {cards.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </Select>
-                {(!extractedData.paymentMethod || extractedData.paymentMethod === 'Dinheiro') && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <button 
-                      onClick={() => updateData('paymentMethod', 'Dinheiro')}
-                      className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
-                    >
-                      Dinheiro
-                    </button>
-                    {cards.map(c => (
-                      <button 
-                        key={c.id}
-                        onClick={() => updateData('paymentMethod', c.name)}
-                        className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
-                      >
-                        {c.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <Input 
-                label="Data Compra" 
-                type="date"
-                value={extractedData.purchaseDate || ''} 
-                onChange={e => updateData('purchaseDate', e.target.value)} 
-              />
-              <Input 
-                label="Mês Fatura" 
-                type="month"
-                value={extractedData.billingMonth || ''} 
-                onChange={e => updateData('billingMonth', e.target.value)} 
-              />
-            </div>
-
-            <Button className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold" onClick={handleConfirm}>
-              <Check className="w-4 h-4 mr-2" /> Confirmar Lançamento
-            </Button>
-          </Card>
-        </motion.div>
-      )}
 
       {/* Integrated List */}
       <div className="pt-4 border-t border-zinc-800">

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fluxonext-v2'; // Increment version to force update
+const CACHE_NAME = 'fluxonext-v3'; // Increment version to force update
 const urlsToCache = [
   '/',
   '/index.html',

@@ -6,13 +6,19 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export const parseTransactionText = async (
   text: string, 
-  history: { role: 'user' | 'ai'; content: string }[] = [],
+  history: any[] = [],
   categories: string[] = [],
   cards: string[] = [],
   today: string = new Date().toISOString()
 ): Promise<ExtractedData> => {
   try {
     const model = "gemini-3-flash-preview";
+    
+    // Filtra o histórico para enviar apenas texto útil para a IA
+    const cleanHistory = history
+      .filter(m => typeof m.content === 'string')
+      .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+      .join('\n');
     
     const prompt = `
       Você é o assistente financeiro do FluxoNext. Hoje é ${today}.
@@ -22,14 +28,16 @@ export const parseTransactionText = async (
       Cartões Disponíveis: ${cards.join(', ')}.
       
       REGRAS: 
-      - Se não tiver certeza da categoria ou cartão, retorne null no JSON.
-      - Se o usuário citar apenas o mês (ex: 'Junho'), use o ano atual de ${today}.
-      - Retorne EXCLUSIVAMENTE um JSON com este formato:
+      - Se não tiver certeza da categoria ou cartão, retorne null.
+      - Se o usuário citar apenas o mês (ex: 'Junho'), use o ano atual de ${today}, a menos que ele especifique outro.
+      - PARCELAMENTO: Aja de forma lógica. Se o usuário disser "1000 em 10x", o valor total é 1000 e parcelas é 10. Se ele disser "10x de 150", o valor total é 1500 e parcelas é 10. Sempre retorne o 'value' como o VALOR TOTAL.
+      
+      Retorne EXCLUSIVAMENTE um JSON com este formato exato:
       {
         "name": "Nome curto do gasto",
-        "value": Valor numérico (ex: 50.00),
-        "category": "Nome da categoria inferida ou null",
-        "paymentMethod": "Nome do cartão ou 'Dinheiro'",
+        "value": Valor TOTAL numérico (ex: 1500.00),
+        "category": "Nome exato da categoria ou null",
+        "paymentMethod": "Nome exato do cartão ou 'Dinheiro' ou null",
         "purchaseDate": "YYYY-MM-DD",
         "billingMonth": "YYYY-MM",
         "isInstallment": true ou false,
@@ -37,7 +45,7 @@ export const parseTransactionText = async (
       }
 
       Histórico da conversa:
-      ${history.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n')}
+      ${cleanHistory}
       
       Nova mensagem do usuário: "${text}"
     `;

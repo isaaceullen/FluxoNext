@@ -164,6 +164,23 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     end: addMonths(new Date(), 12 * 10) // 10 years future
   }).map(date => format(date, 'yyyy-MM'));
 
+  const handleEditExpense = (exp: any) => {
+    setFormData({
+      id: exp.id,
+      purchaseDate: exp.purchaseDate,
+      billingMonth: exp.billingMonth,
+      title: exp.title,
+      categoryId: exp.categoryId,
+      paymentMethod: (exp as any).currentMonthPaymentMethod,
+      isInstallment: exp.isInstallment,
+      totalInstallments: exp.installments?.total || 1,
+      totalValue: exp.totalValue.toString(),
+      installmentValue: exp.installmentValue.toString(),
+    });
+    setActiveTab(exp.type === 'fixed' ? 'fixed' : 'manual');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title || !formData.totalValue) return;
@@ -314,7 +331,11 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
 
       {activeTab === 'chat' ? (
         user ? (
-          <ExpenseChat />
+          <ExpenseChat 
+            filteredExpenses={filteredExpenses}
+            onEdit={handleEditExpense}
+            viewMonth={viewMonth}
+          />
         ) : (
           <div className="relative h-[400px] sm:h-[600px] bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden flex items-center justify-center p-6 sm:p-8 text-center">
             <div className="max-w-xs w-full space-y-4">
@@ -530,74 +551,13 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3">
-              {filteredExpenses.length === 0 ? (
-                <div className="text-center py-10 text-zinc-500">Nenhuma despesa para esta fatura.</div>
-              ) : (
-                filteredExpenses.map(exp => {
-                  const category = expenseCategories.find(c => c.id === exp.categoryId);
-                  const card = cards.find(c => c.id === (exp as any).currentMonthPaymentMethod);
-                  const displayValue = (exp as any).currentMonthValue;
-                  
-                  return (
-                    <div key={exp.id} className="bg-zinc-900/50 border border-zinc-800 p-3 sm:p-4 rounded-xl flex items-center justify-between group">
-                      <div className="flex items-center gap-3 sm:gap-4">
-                        <div className="p-2 bg-red-500/10 rounded-lg text-red-500">
-                          {card ? <CardIcon className="w-4 h-4 sm:w-5 sm:h-5" /> : <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />}
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-zinc-200 text-sm sm:text-base">{exp.title}</h4>
-                          <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] sm:text-xs text-zinc-500">
-                            <span>{format(parseISO(exp.purchaseDate), 'dd/MM/yy')}</span>
-                            <span className="text-zinc-600">•</span>
-                            <span style={{ color: category?.color }}>{category?.name}</span>
-                            {exp.type === 'fixed' && <span className="text-emerald-500">• Fixa</span>}
-                            {exp.installments && (
-                              <>
-                                <span className="text-zinc-600">•</span>
-                                <span className="text-yellow-500">Parcela {exp.installments.current}/{exp.installments.total}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 sm:gap-4">
-                        <span className="font-bold text-zinc-200 text-sm sm:text-base">{formatCurrency(displayValue)}</span>
-                        <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
-                          <button 
-                            onClick={() => {
-                              setFormData({
-                                id: exp.id,
-                                purchaseDate: exp.purchaseDate,
-                                billingMonth: exp.billingMonth,
-                                title: exp.title,
-                                categoryId: exp.categoryId,
-                                paymentMethod: (exp as any).currentMonthPaymentMethod,
-                                isInstallment: exp.isInstallment,
-                                totalInstallments: exp.installments?.total || 1,
-                                totalValue: exp.totalValue.toString(),
-                                installmentValue: exp.installmentValue.toString(),
-                              });
-                              setActiveTab(exp.type === 'fixed' ? 'fixed' : 'manual');
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                            className="p-2 text-zinc-600 hover:text-yellow-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => deleteExpense(exp.id)}
-                            className="p-2 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+            <ExpenseList 
+              expenses={filteredExpenses} 
+              expenseCategories={expenseCategories} 
+              cards={cards} 
+              onEdit={handleEditExpense} 
+              onDelete={deleteExpense} 
+            />
           </div>
         </>
       )}
@@ -789,13 +749,91 @@ const FilterModal = ({
   );
 };
 
-const ExpenseChat = () => {
+const ExpenseList = ({ 
+  expenses, 
+  expenseCategories, 
+  cards, 
+  onEdit, 
+  onDelete 
+}: { 
+  expenses: any[], 
+  expenseCategories: any[], 
+  cards: any[], 
+  onEdit: (exp: any) => void, 
+  onDelete: (id: string) => void 
+}) => {
+  if (expenses.length === 0) {
+    return <div className="text-center py-10 text-zinc-500">Nenhuma despesa para esta fatura.</div>;
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-3">
+      {expenses.map(exp => {
+        const category = expenseCategories.find(c => c.id === exp.categoryId);
+        const card = cards.find(c => c.id === (exp as any).currentMonthPaymentMethod);
+        const displayValue = (exp as any).currentMonthValue;
+        
+        return (
+          <div key={exp.id} className="bg-zinc-900/50 border border-zinc-800 p-3 sm:p-4 rounded-xl flex items-center justify-between group">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="p-2 bg-red-500/10 rounded-lg text-red-500">
+                {card ? <CardIcon className="w-4 h-4 sm:w-5 sm:h-5" /> : <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />}
+              </div>
+              <div>
+                <h4 className="font-medium text-zinc-200 text-sm sm:text-base">{exp.title}</h4>
+                <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] sm:text-xs text-zinc-500">
+                  <span>{format(parseISO(exp.purchaseDate), 'dd/MM/yy')}</span>
+                  <span className="text-zinc-600">•</span>
+                  <span style={{ color: category?.color }}>{category?.name}</span>
+                  {exp.type === 'fixed' && <span className="text-emerald-500">• Fixa</span>}
+                  {exp.installments && (
+                    <>
+                      <span className="text-zinc-600">•</span>
+                      <span className="text-yellow-500">Parcela {exp.installments.current}/{exp.installments.total}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <span className="font-bold text-zinc-200 text-sm sm:text-base">{formatCurrency(displayValue)}</span>
+              <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                <button 
+                  onClick={() => onEdit(exp)}
+                  className="p-2 text-zinc-600 hover:text-yellow-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => onDelete(exp.id)}
+                  className="p-2 text-zinc-600 hover:text-red-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const ExpenseChat = ({ 
+  filteredExpenses, 
+  onEdit,
+  viewMonth
+}: { 
+  filteredExpenses: any[], 
+  onEdit: (exp: any) => void,
+  viewMonth: string
+}) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
-  const { cards, expenseCategories, addExpense, addInstallmentExpense, lastUsedPaymentMethod, setLastUsedPaymentMethod } = useFinance();
-  const [messages, setMessages] = useState<{ role: 'user' | 'ai'; content: string | React.ReactNode }[]>([
-    { role: 'ai', content: 'Digite seu gasto para eu registrar.' }
+  const { cards, expenseCategories, addExpense, addInstallmentExpense, lastUsedPaymentMethod, setLastUsedPaymentMethod, deleteExpense } = useFinance();
+  const [messages, setMessages] = useState<{ role: 'user' | 'ai'; content: string }[]>([
+    { role: 'ai', content: 'Olá! Sou seu tutor financeiro. Me diga quanto você gastou e com o quê.' }
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -804,23 +842,19 @@ const ExpenseChat = () => {
 
     const userText = input;
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userText }]);
+    const newMessages = [...messages, { role: 'user' as const, content: userText }];
+    setMessages(newMessages);
     setIsLoading(true);
     setExtractedData(null);
 
     try {
-      const result = await parseTransactionText(userText);
-      // Map new AI fields to ExtractedData if needed, but we already updated the interface
+      const history = messages; 
+      const categories = expenseCategories.map(c => c.name);
+      
+      const result = await parseTransactionText(userText, history, categories);
       setExtractedData(result);
       
-      if (result.missingFields && result.missingFields.length > 0 && result.missingFields[0] !== 'error') {
-         setMessages(prev => [...prev, { 
-           role: 'ai', 
-           content: `Preciso de mais detalhes: ${result.missingFields.join(', ')}` 
-         }]);
-      } else {
-         setMessages(prev => [...prev, { role: 'ai', content: 'Confira os dados abaixo:' }]);
-      }
+      setMessages(prev => [...prev, { role: 'ai', content: 'Analisei seu gasto. Confira os dados abaixo e confirme.' }]);
 
     } catch (error) {
       setMessages(prev => [...prev, { role: 'ai', content: 'Erro ao processar. Tente novamente.' }]);
@@ -866,113 +900,141 @@ const ExpenseChat = () => {
     }
 
     setLastUsedPaymentMethod(paymentMethod);
-    setMessages(prev => [...prev, { role: 'ai', content: 'Lançamento salvo!' }]);
+    setMessages(prev => [...prev, { role: 'ai', content: 'Lançamento salvo com sucesso!' }]);
     setExtractedData(null);
   };
 
   // Helper to fill missing data
-  const fillData = (key: keyof ExtractedData, value: any) => {
+  const updateData = (key: keyof ExtractedData, value: any) => {
     if (extractedData) {
       setExtractedData({ ...extractedData, [key]: value });
     }
   };
 
   return (
-    <div className="flex flex-col h-[600px] bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={cn("flex", msg.role === 'user' ? "justify-end" : "justify-start")}>
-            <div className={cn(
-              "max-w-[85%] rounded-2xl px-4 py-3 text-sm",
-              msg.role === 'user' 
-                ? "bg-zinc-800 text-zinc-100 rounded-tr-none" 
-                : "bg-yellow-500/10 text-yellow-500 rounded-tl-none border border-yellow-500/20"
-            )}>
-              {msg.content}
+    <div className="space-y-6">
+      {/* Chat Area */}
+      <div className="h-[300px] bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.map((msg, idx) => (
+            <div key={idx} className={cn("flex", msg.role === 'user' ? "justify-end" : "justify-start")}>
+              <div className={cn(
+                "max-w-[85%] rounded-2xl px-4 py-3 text-sm",
+                msg.role === 'user' 
+                  ? "bg-zinc-800 text-zinc-100 rounded-tr-none" 
+                  : "bg-yellow-500/10 text-yellow-500 rounded-tl-none border border-yellow-500/20"
+              )}>
+                {msg.content}
+              </div>
             </div>
+          ))}
+          {isLoading && <div className="text-zinc-500 text-sm animate-pulse">Digitando...</div>}
+          <div ref={messagesEndRef} />
+        </div>
+
+        <div className="p-4 border-t border-zinc-800 bg-zinc-950">
+          <div className="flex gap-2 items-center">
+            <Input 
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              placeholder="Digite seu gasto..."
+              className="bg-zinc-900 border-zinc-800 focus:ring-yellow-500/20"
+            />
+            <Button size="icon" onClick={handleSend} disabled={isLoading || !input.trim()}>
+              <Send className="w-4 h-4" />
+            </Button>
           </div>
-        ))}
-
-        {extractedData && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3 max-w-md"
-          >
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-medium text-zinc-100">{extractedData.name || '...'}</h3>
-                <p className="text-xs text-zinc-400">{extractedData.purchaseDate || format(new Date(), 'dd/MM/yyyy')}</p>
-              </div>
-              <span className="text-lg font-bold text-yellow-500">{formatCurrency(extractedData.value || 0)}</span>
-            </div>
-            
-            {/* Missing Category Selection */}
-            {!extractedData.category && (
-              <div className="space-y-2">
-                <p className="text-xs text-zinc-500">Selecione a Categoria:</p>
-                <div className="flex flex-wrap gap-2">
-                  {expenseCategories.map(c => (
-                    <button 
-                      key={c.id}
-                      onClick={() => fillData('category', c.name)}
-                      className="px-2 py-1 text-xs rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700"
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2 text-xs pt-2">
-               {extractedData.category && (
-                <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300 border border-zinc-700">
-                  {extractedData.category}
-                </span>
-               )}
-               {extractedData.paymentMethod && (
-                <span className="px-2 py-1 rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-1">
-                  <CardIcon className="w-3 h-3" />
-                  {extractedData.paymentMethod}
-                </span>
-               )}
-               {extractedData.installments && extractedData.installments > 1 && (
-                 <span className="px-2 py-1 rounded-md bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
-                   {extractedData.installments}x
-                 </span>
-               )}
-            </div>
-
-            <div className="pt-2 flex gap-2">
-              <Button size="sm" className="w-full" onClick={handleConfirm}>
-                <Check className="w-4 h-4 mr-2" /> Confirmar
-              </Button>
-              <Button size="sm" variant="outline" className="w-full" onClick={() => setExtractedData(null)}>
-                Cancelar
-              </Button>
-            </div>
-          </motion.div>
-        )}
-        
-        {isLoading && <div className="text-zinc-500 text-sm animate-pulse">Processando...</div>}
-        <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      <div className="p-4 border-t border-zinc-800 bg-zinc-950">
-        <div className="flex gap-2 items-center">
-          <Input 
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Digite seu gasto..."
-            className="bg-zinc-900 border-zinc-800 focus:ring-yellow-500/20"
-          />
+      {/* Confirmation Card */}
+      {extractedData && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Card className="border-yellow-500/50 p-4 bg-zinc-900/80 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-zinc-100">Confirmar Lançamento</h3>
+              <Button size="sm" variant="ghost" onClick={() => setExtractedData(null)}><X className="w-4 h-4" /></Button>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input 
+                label="Nome" 
+                value={extractedData.name || ''} 
+                onChange={e => updateData('name', e.target.value)} 
+              />
+              <Input 
+                label="Valor" 
+                type="number" 
+                value={extractedData.value || ''} 
+                onChange={e => updateData('value', parseFloat(e.target.value))} 
+              />
+              <Select
+                label="Categoria"
+                value={expenseCategories.find(c => c.name === extractedData.category)?.id || ''}
+                onChange={e => {
+                  const cat = expenseCategories.find(c => c.id === e.target.value);
+                  updateData('category', cat?.name);
+                }}
+              >
+                <option value="">Selecione...</option>
+                {expenseCategories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </Select>
+              <Select
+                label="Pagamento"
+                value={extractedData.paymentMethod === 'Dinheiro' ? 'cash' : (cards.find(c => c.name === extractedData.paymentMethod)?.id || 'cash')}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (val === 'cash') updateData('paymentMethod', 'Dinheiro');
+                  else {
+                    const card = cards.find(c => c.id === val);
+                    updateData('paymentMethod', card?.name);
+                  }
+                }}
+              >
+                <option value="cash">Dinheiro</option>
+                {cards.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </Select>
+              <Input 
+                label="Data Compra" 
+                type="date"
+                value={extractedData.purchaseDate || ''} 
+                onChange={e => updateData('purchaseDate', e.target.value)} 
+              />
+              <Input 
+                label="Mês Fatura" 
+                type="month"
+                value={extractedData.billingMonth || ''} 
+                onChange={e => updateData('billingMonth', e.target.value)} 
+              />
+            </div>
 
-          <Button size="icon" onClick={handleSend} disabled={isLoading || !input.trim()}>
-            <Send className="w-4 h-4" />
-          </Button>
-        </div>
+            <Button className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold" onClick={handleConfirm}>
+              <Check className="w-4 h-4 mr-2" /> Confirmar Lançamento
+            </Button>
+          </Card>
+        </motion.div>
+      )}
+
+      {/* Integrated List */}
+      <div className="pt-4 border-t border-zinc-800">
+        <h3 className="text-lg font-semibold text-zinc-300 mb-4">
+          Lançamentos de {format(parseISO(viewMonth + '-01'), 'MMMM', { locale: ptBR })}
+        </h3>
+        <ExpenseList 
+          expenses={filteredExpenses} 
+          expenseCategories={expenseCategories} 
+          cards={cards} 
+          onEdit={onEdit} 
+          onDelete={deleteExpense} 
+        />
       </div>
     </div>
   );

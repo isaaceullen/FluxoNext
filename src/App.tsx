@@ -27,18 +27,43 @@ function App() {
 
   const STORAGE_KEY = 'fluxonext_data_v2';
 
+  // Hash Routing Logic
+  React.useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      const routeMap: Record<string, View> = {
+        '#/': 'home',
+        '#/home': 'home',
+        '#/receitas': 'income',
+        '#/despesas': 'expenses',
+        '#/dashboard': 'dashboard',
+        '#/cartoes': 'cards',
+        '#/categorias': 'categories',
+      };
+
+      const view = routeMap[hash] || 'home';
+      setCurrentView(view);
+    };
+
+    // Handle initial load
+    handleHashChange();
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   const navItems = [
-    { id: 'home', label: 'Home', icon: Home },
-    { id: 'income', label: 'Receitas', icon: DollarSign },
-    { id: 'expenses', label: 'Despesas', icon: Wallet },
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'cards', label: 'Cartões', icon: CreditCard },
-    { id: 'categories', label: 'Categorias', icon: Tag },
+    { id: 'home', label: 'Home', icon: Home, hash: '#/home' },
+    { id: 'income', label: 'Receitas', icon: DollarSign, hash: '#/receitas' },
+    { id: 'expenses', label: 'Despesas', icon: Wallet, hash: '#/despesas' },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, hash: '#/dashboard' },
+    { id: 'cards', label: 'Cartões', icon: CreditCard, hash: '#/cartoes' },
+    { id: 'categories', label: 'Categorias', icon: Tag, hash: '#/categorias' },
   ] as const;
 
   const handleEditExpense = (id: string) => {
     setEditingExpenseId(id);
-    setCurrentView('expenses');
+    window.location.hash = '#/despesas';
   };
 
   const handleExport = () => {
@@ -101,7 +126,7 @@ function App() {
             <button
               key={item.id}
               onClick={() => {
-                setCurrentView(item.id);
+                window.location.hash = item.hash;
                 if (item.id !== 'expenses') setEditingExpenseId(null);
               }}
               className={cn(
@@ -153,7 +178,7 @@ function App() {
                 <button
                   key={item.id}
                   onClick={() => {
-                    setCurrentView(item.id);
+                    window.location.hash = item.hash;
                     setIsMobileMenuOpen(false);
                     if (item.id !== 'expenses') setEditingExpenseId(null);
                   }}
@@ -208,7 +233,7 @@ function App() {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => {
-          setCurrentView('expenses');
+          window.location.hash = '#/despesas';
           setEditingExpenseId(null);
           setIsMobileMenuOpen(false);
         }}

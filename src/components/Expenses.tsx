@@ -784,6 +784,8 @@ const ExpenseList = ({
                 <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] sm:text-xs text-zinc-500">
                   <span>{format(parseISO(exp.purchaseDate), 'dd/MM/yy')}</span>
                   <span className="text-zinc-600">•</span>
+                  <span>Fatura: {format(parseISO(exp.billingMonth + '-01'), 'MMM/yyyy', { locale: ptBR })}</span>
+                  <span className="text-zinc-600">•</span>
                   <span style={{ color: category?.color }}>{category?.name}</span>
                   {exp.type === 'fixed' && <span className="text-emerald-500">• Fixa</span>}
                   {exp.installments && (

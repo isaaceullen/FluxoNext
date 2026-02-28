@@ -76,6 +76,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     totalInstallments: 2,
     totalValue: '',
     installmentValue: '',
+    effectiveMonth: format(new Date(), 'yyyy-MM'),
   });
 
   // Handle editing from external source (like Summary modal)
@@ -179,6 +180,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
       totalInstallments: exp.installments?.total || 1,
       totalValue: exp.totalValue.toString(),
       installmentValue: exp.installmentValue.toString(),
+      effectiveMonth: viewMonth,
     });
     setActiveTab(exp.type === 'fixed' ? 'fixed' : 'manual');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -204,7 +206,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
       };
 
       if (activeTab === 'fixed') {
-        updateFixedExpenseValue(formData.id, format(new Date(), 'yyyy-MM'), totalVal, formData.paymentMethod);
+        updateFixedExpenseValue(formData.id, formData.effectiveMonth, totalVal, formData.paymentMethod);
         updateExpense(formData.id, { title: formData.title, categoryId: formData.categoryId });
       } else if (exp?.originalId) {
         // It's an installment, show modal
@@ -231,7 +233,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
         addExpense({
           ...baseData,
           type: 'fixed',
-          valueHistory: [{ monthYear: format(new Date(), 'yyyy-MM'), value: totalVal, paymentMethod: formData.paymentMethod }]
+          valueHistory: [{ monthYear: formData.effectiveMonth, value: totalVal, paymentMethod: formData.paymentMethod }]
         });
       } else if (formData.isInstallment) {
         addInstallmentExpense(baseData, formData.billingMonth, formData.totalInstallments);
@@ -255,6 +257,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
       totalInstallments: 2,
       totalValue: '',
       installmentValue: '',
+      effectiveMonth: format(new Date(), 'yyyy-MM'),
     });
   };
 
@@ -441,6 +444,16 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
                 required
               />
 
+              {activeTab === 'fixed' && formData.id && (
+                <Input 
+                  label="A partir de qual mês? (Mês da Alteração)" 
+                  type="month"
+                  value={formData.effectiveMonth} 
+                  onChange={e => setFormData({...formData, effectiveMonth: e.target.value})}
+                  required
+                />
+              )}
+
               {activeTab === 'manual' && formData.isInstallment && (
                 <Input 
                   label="Valor da Parcela" 
@@ -467,6 +480,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
                     totalInstallments: 2,
                     totalValue: '',
                     installmentValue: '',
+                    effectiveMonth: format(new Date(), 'yyyy-MM'),
                   });
                 }}>
                   Cancelar Edição
@@ -519,7 +533,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
                 onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
                 className="px-4 py-2 font-medium text-zinc-200 min-w-[160px] flex items-center justify-center gap-2 hover:bg-zinc-800 rounded-lg transition-colors capitalize"
               >
-                {format(parseISO(viewMonth + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                {format(parseISO(viewMonth + '-01'), 'MMM/yyyy', { locale: ptBR })}
                 <ChevronDown className={cn("w-4 h-4 transition-transform", isMonthDropdownOpen && "rotate-180")} />
               </button>
 
@@ -543,7 +557,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
                           viewMonth === m ? "text-yellow-500 bg-yellow-500/5" : "text-zinc-400"
                         )}
                       >
-                        {format(parseISO(m + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                        {format(parseISO(m + '-01'), 'MMM/yyyy', { locale: ptBR })}
                       </button>
                     ))}
                   </motion.div>
@@ -806,9 +820,9 @@ const ExpenseList = ({
               <div>
                 <h4 className="font-medium text-zinc-200 text-sm sm:text-base">{exp.title}</h4>
                 <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] sm:text-xs text-zinc-500">
-                  <span>{format(parseISO(exp.purchaseDate), 'dd/MM/yy')}</span>
+                  <span>{format(parseISO(exp.purchaseDate), 'dd/MM/yyyy')}</span>
                   <span className="text-zinc-600">•</span>
-                  <span>Fatura: {format(parseISO(exp.billingMonth + '-01'), 'MMM/yyyy', { locale: ptBR })}</span>
+                  <span className="capitalize">Fatura: {format(parseISO(exp.billingMonth + '-01'), 'MMM/yyyy', { locale: ptBR })}</span>
                   <span className="text-zinc-600">•</span>
                   <span style={{ color: category?.color }}>{category?.name}</span>
                   {exp.type === 'fixed' && <span className="text-emerald-500">• Fixa</span>}
@@ -1065,18 +1079,32 @@ const ExpenseChat = ({
                     )}
                   </div>
 
-                  <Input 
-                    label="Data Compra" 
-                    type="date"
-                    value={extractedData.purchaseDate || ''} 
-                    onChange={e => updateData('purchaseDate', e.target.value)} 
-                  />
-                  <Input 
-                    label="Mês Fatura" 
-                    type="month"
-                    value={extractedData.billingMonth || ''} 
-                    onChange={e => updateData('billingMonth', e.target.value)} 
-                  />
+                  <div className="space-y-1">
+                    <Input 
+                      label="Data Compra" 
+                      type="date"
+                      value={extractedData.purchaseDate || ''} 
+                      onChange={e => updateData('purchaseDate', e.target.value)} 
+                    />
+                    {extractedData.purchaseDate && (
+                      <p className="text-[10px] text-zinc-500 pl-1">
+                        {format(parseISO(extractedData.purchaseDate), 'dd/MM/yyyy')}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Input 
+                      label="Mês Fatura" 
+                      type="month"
+                      value={extractedData.billingMonth || ''} 
+                      onChange={e => updateData('billingMonth', e.target.value)} 
+                    />
+                    {extractedData.billingMonth && (
+                      <p className="text-[10px] text-zinc-500 pl-1 capitalize">
+                        {format(parseISO(extractedData.billingMonth + '-01'), 'MMM/yyyy', { locale: ptBR })}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {extractedData.isInstallment && (extractedData.installments || 1) > 1 && (
@@ -1150,7 +1178,7 @@ const HistoryModal = ({
                 <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800">
                   <div className="flex flex-col">
                     <span className="text-xs text-zinc-500 capitalize">
-                      {format(parseISO(h.monthYear + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                      {format(parseISO(h.monthYear + '-01'), 'MM/yyyy', { locale: ptBR })}
                     </span>
                     <span className="text-sm font-medium text-zinc-200">
                       {h.paymentMethod === 'cash' ? 'Dinheiro' : 'Cartão'}

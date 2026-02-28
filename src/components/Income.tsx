@@ -11,7 +11,7 @@ export const Income = () => {
   const { incomes, incomeCategories, cards, addIncome, updateIncome, deleteIncome, updateFixedIncomeValue, getIncomeValueForMonth } = useFinance();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ title: '', amount: '', category: '', paymentMethod: 'cash' });
+  const [editForm, setEditForm] = useState({ title: '', amount: '', category: '', paymentMethod: 'cash', effectiveMonth: new Date().toISOString().slice(0, 7) });
   const [historyModalData, setHistoryModalData] = useState<{ title: string; history: any[] } | null>(null);
   
   // Form State
@@ -23,6 +23,7 @@ export const Income = () => {
     paymentMethod: 'cash',
     startMonth: new Date().toISOString().slice(0, 7), // YYYY-MM
     durationMonths: '1',
+    effectiveMonth: new Date().toISOString().slice(0, 7),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -38,10 +39,9 @@ export const Income = () => {
     };
 
     if (incomeType === 'fixed') {
-      const currentMonth = new Date().toISOString().slice(0, 7);
       addIncome({
         ...baseData,
-        valueHistory: [{ monthYear: currentMonth, value: amount, paymentMethod: formData.paymentMethod }]
+        valueHistory: [{ monthYear: formData.effectiveMonth, value: amount, paymentMethod: formData.paymentMethod }]
       });
     } else {
       addIncome({
@@ -60,6 +60,7 @@ export const Income = () => {
       paymentMethod: 'cash',
       startMonth: new Date().toISOString().slice(0, 7),
       durationMonths: '1',
+      effectiveMonth: new Date().toISOString().slice(0, 7),
     });
   };
 
@@ -75,7 +76,8 @@ export const Income = () => {
       title: inc.title, 
       amount: currentVal.toString(), 
       category: inc.categoryId,
-      paymentMethod: latest?.paymentMethod || inc.paymentMethod || 'cash'
+      paymentMethod: latest?.paymentMethod || inc.paymentMethod || 'cash',
+      effectiveMonth: new Date().toISOString().slice(0, 7)
     });
   };
 
@@ -91,8 +93,7 @@ export const Income = () => {
           title: editForm.title,
           categoryId: editForm.category
         });
-        const currentMonth = new Date().toISOString().slice(0, 7);
-        updateFixedIncomeValue(editingId, currentMonth, newAmount, editForm.paymentMethod);
+        updateFixedIncomeValue(editingId, editForm.effectiveMonth, newAmount, editForm.paymentMethod);
       } else {
         updateIncome(editingId, {
           title: editForm.title,
@@ -191,6 +192,16 @@ export const Income = () => {
                   ))}
                 </Select>
                 
+                {incomeType === 'fixed' && (
+                  <Input 
+                    label="Mês de Início" 
+                    type="month"
+                    value={formData.effectiveMonth} 
+                    onChange={e => setFormData({...formData, effectiveMonth: e.target.value})}
+                    required
+                  />
+                )}
+
                 {incomeType === 'temporary' && (
                   <>
                     <Input 
@@ -265,6 +276,14 @@ export const Income = () => {
                           <option key={c.id} value={c.id}>Cartão: {c.name}</option>
                         ))}
                       </Select>
+                      {inc.type === 'fixed' && (
+                        <Input 
+                          type="month"
+                          value={editForm.effectiveMonth} 
+                          onChange={e => setEditForm({...editForm, effectiveMonth: e.target.value})}
+                          className="w-full"
+                        />
+                      )}
                     </div>
                     <div className="flex gap-2 w-full sm:w-auto justify-end">
                       <button onClick={saveEdit} className="p-3 text-emerald-500 hover:bg-emerald-500/10 rounded-xl min-w-[44px] min-h-[44px] flex items-center justify-center border border-zinc-800 sm:border-none"><Check className="w-5 h-5" /></button>
@@ -369,7 +388,7 @@ const HistoryModal = ({
                 <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800">
                   <div className="flex flex-col">
                     <span className="text-xs text-zinc-500 capitalize">
-                      {format(parseISO(h.monthYear + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                      {format(parseISO(h.monthYear + '-01'), 'MM/yyyy', { locale: ptBR })}
                     </span>
                     <span className="text-sm font-medium text-zinc-200">
                       {h.paymentMethod === 'cash' ? 'Dinheiro' : 'Cartão'}

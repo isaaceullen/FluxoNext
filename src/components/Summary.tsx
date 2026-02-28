@@ -54,7 +54,7 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
         <div>
           <h2 className="text-zinc-400 text-sm font-medium uppercase tracking-wider">Resumo Financeiro</h2>
           <p className="text-zinc-100 text-lg font-semibold">
-            Hoje, {format(new Date(), "d 'de' MMMM", { locale: ptBR })}
+            Hoje, {format(new Date(), "dd/MM/yyyy")}
           </p>
         </div>
         
@@ -68,7 +68,7 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
               onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
               className="px-4 py-2 font-medium text-zinc-200 min-w-[160px] flex items-center justify-center gap-2 hover:bg-zinc-800 rounded-lg transition-colors capitalize"
             >
-              {format(parseISO(selectedMonth + '-01'), 'MMMM yyyy', { locale: ptBR })}
+              {format(parseISO(selectedMonth + '-01'), 'MMM/yyyy', { locale: ptBR })}
               <ChevronDown className={cn("w-4 h-4 transition-transform", isMonthDropdownOpen && "rotate-180")} />
             </button>
 
@@ -92,7 +92,7 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
                         selectedMonth === m ? "text-yellow-500 bg-yellow-500/5" : "text-zinc-400"
                       )}
                     >
-                      {format(parseISO(m + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                      {format(parseISO(m + '-01'), 'MMM/yyyy', { locale: ptBR })}
                     </button>
                   ))}
                 </motion.div>
@@ -247,7 +247,7 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
               <div className="p-6 border-b border-zinc-800 flex items-center justify-between" style={{ borderTop: `4px solid ${selectedCard.color}` }}>
                 <div>
                   <h3 className="text-xl font-bold text-zinc-100">{selectedCard.name}</h3>
-                  <p className="text-zinc-500 text-sm capitalize">Fatura de {format(parseISO(selectedMonth + '-01'), 'MMMM yyyy', { locale: ptBR })}</p>
+                  <p className="text-zinc-500 text-sm capitalize">Fatura de {format(parseISO(selectedMonth + '-01'), 'MMM/yyyy', { locale: ptBR })}</p>
                 </div>
                 <button onClick={() => setSelectedCardId(null)} className="p-2 text-zinc-500 hover:text-zinc-200 transition-colors">
                   <X className="w-6 h-6" />
@@ -264,7 +264,7 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
                       <div>
                         <p className="font-medium text-zinc-200">{exp.title}</p>
                         <div className="flex gap-2 text-xs text-zinc-500">
-                          <span>{format(parseISO(exp.purchaseDate), 'dd/MM')}</span>
+                          <span>{format(parseISO(exp.purchaseDate), 'dd/MM/yyyy')}</span>
                           {exp.installments && (
                             <span className="text-yellow-500">Parcela {exp.installments.current}/{exp.installments.total}</span>
                           )}

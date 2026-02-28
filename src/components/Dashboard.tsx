@@ -62,7 +62,7 @@ export const Dashboard = () => {
     for (let i = -2; i <= 3; i++) {
         const date = addMonths(today, i);
         const monthStr = format(date, 'yyyy-MM');
-        const label = format(date, 'MMM/yy', { locale: ptBR });
+        const label = format(date, 'MMM/yyyy', { locale: ptBR });
         
         // Calculate Income
         const income = incomes.reduce((acc, inc) => acc + getIncomeValueForMonth(inc, monthStr), 0);
@@ -99,7 +99,7 @@ export const Dashboard = () => {
               onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
               className="px-4 py-2 font-medium text-zinc-200 min-w-[160px] flex items-center justify-center gap-2 hover:bg-zinc-800 rounded-lg transition-colors capitalize"
             >
-              {format(parseISO(selectedMonth + '-01'), 'MMMM yyyy', { locale: ptBR })}
+              {format(parseISO(selectedMonth + '-01'), 'MMM/yyyy', { locale: ptBR })}
               <ChevronDown className={cn("w-4 h-4 transition-transform", isMonthDropdownOpen && "rotate-180")} />
             </button>
 
@@ -123,7 +123,7 @@ export const Dashboard = () => {
                         selectedMonth === m ? "text-yellow-500 bg-yellow-500/5" : "text-zinc-400"
                       )}
                     >
-                      {format(parseISO(m + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                      {format(parseISO(m + '-01'), 'MMM/yyyy', { locale: ptBR })}
                     </button>
                   ))}
                 </motion.div>

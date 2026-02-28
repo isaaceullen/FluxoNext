@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
 import { Income, Expense, Category, CreditCard, CardPaymentStatus } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { addMonths, format, parseISO, isSameMonth } from 'date-fns';
@@ -18,7 +18,7 @@ interface FinanceData {
   lastUpdated?: string; // ISO string
 }
 
-export const useFinance = () => {
+const useFinanceLogic = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -493,4 +493,21 @@ export const useFinance = () => {
     lastUsedPaymentMethod: data.lastUsedPaymentMethod,
     setLastUsedPaymentMethod,
   };
+};
+
+const FinanceContext = createContext<ReturnType<typeof useFinanceLogic> | undefined>(undefined);
+
+export const FinanceProvider = ({ children }: { children: ReactNode }) => {
+  const financeData = useFinanceLogic();
+  return (
+    <FinanceContext.Provider value={financeData}>
+      {children}
+    </FinanceContext.Provider>
+  );
+};
+
+export const useFinance = () => {
+  const context = useContext(FinanceContext);
+  if (!context) throw new Error('useFinance must be used within a FinanceProvider');
+  return context;
 };

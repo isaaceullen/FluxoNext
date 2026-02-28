@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { useFinance } from '../hooks/useFinance';
 import { Card, Button, Input, Select } from './ui';
-import { Plus, Trash2, Edit2, DollarSign, X, Check } from 'lucide-react';
+import { Plus, Trash2, Edit2, DollarSign, X, Check, Clock } from 'lucide-react';
 import { formatCurrency, cn } from '../utils';
-import { motion } from 'motion/react';
-import { format } from 'date-fns';
+import { motion, AnimatePresence } from 'motion/react';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export const Income = () => {
   const { incomes, incomeCategories, cards, addIncome, updateIncome, deleteIncome, updateFixedIncomeValue, getIncomeValueForMonth } = useFinance();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ title: '', amount: '', category: '', paymentMethod: 'cash' });
+  const [historyModalData, setHistoryModalData] = useState<{ title: string; history: any[] } | null>(null);
   
   // Form State
   const [incomeType, setIncomeType] = useState<'fixed' | 'temporary'>('fixed');
@@ -290,6 +292,15 @@ export const Income = () => {
                     <div className="flex items-center gap-2 sm:gap-4">
                       <span className="font-bold text-emerald-500 text-sm sm:text-base">{formatCurrency(currentVal)}</span>
                       <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                        {inc.type === 'fixed' && (
+                          <button 
+                            onClick={() => setHistoryModalData({ title: inc.title, history: inc.valueHistory || [] })}
+                            className="p-2 text-zinc-600 hover:text-emerald-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
+                            title="Histórico"
+                          >
+                            <Clock className="w-4 h-4" />
+                          </button>
+                        )}
                         <button 
                           onClick={() => startEdit(inc)}
                           className="p-2 text-zinc-600 hover:text-yellow-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
@@ -311,6 +322,72 @@ export const Income = () => {
           })
         )}
       </div>
+
+      <HistoryModal 
+        isOpen={!!historyModalData}
+        onClose={() => setHistoryModalData(null)}
+        title={historyModalData?.title || ''}
+        history={historyModalData?.history || []}
+      />
+    </div>
+  );
+};
+
+const HistoryModal = ({ 
+  isOpen, 
+  onClose, 
+  title, 
+  history 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  title: string; 
+  history: any[] 
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-md"
+      >
+        <Card className="relative border-zinc-800 shadow-2xl bg-zinc-950">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-zinc-100">Histórico: {title}</h3>
+            <button onClick={onClose} className="p-2 text-zinc-500 hover:text-zinc-200 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+            {history.length === 0 ? (
+              <p className="text-center text-zinc-500 py-4">Nenhum histórico registrado.</p>
+            ) : (
+              history.map((h, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-zinc-500 capitalize">
+                      {format(parseISO(h.monthYear + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                    </span>
+                    <span className="text-sm font-medium text-zinc-200">
+                      {h.paymentMethod === 'cash' ? 'Dinheiro' : 'Cartão'}
+                    </span>
+                  </div>
+                  <span className="font-bold text-emerald-500">
+                    {formatCurrency(h.value)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="mt-8">
+            <Button className="w-full" onClick={onClose}>Fechar</Button>
+          </div>
+        </Card>
+      </motion.div>
     </div>
   );
 };

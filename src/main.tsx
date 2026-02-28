@@ -3,10 +3,13 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import * as serviceWorkerRegistration from './serviceWorkerRegistration';
+import { FinanceProvider } from './hooks/useFinance';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <FinanceProvider>
+      <App />
+    </FinanceProvider>
   </StrictMode>,
 );
 

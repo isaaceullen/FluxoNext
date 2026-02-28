@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useFinance } from '../hooks/useFinance';
 import { Card, Button, Input, Select } from './ui';
-import { Plus, Trash2, Calendar, CreditCard as CardIcon, DollarSign, MessageSquare, List, Send, Check, Edit2, ArrowLeft, ArrowRight, ChevronDown, X, Search, Filter } from 'lucide-react';
+import { Plus, Trash2, Calendar, CreditCard as CardIcon, DollarSign, MessageSquare, List, Send, Check, Edit2, ArrowLeft, ArrowRight, ChevronDown, X, Search, Filter, Clock } from 'lucide-react';
 import { formatCurrency, cn } from '../utils';
 import { format, parseISO, addMonths, subMonths, eachMonthOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -15,6 +15,7 @@ interface FilterState {
   paymentMethod: string;
   minValue: string;
   maxValue: string;
+  type: 'all' | 'fixed' | 'variable';
 }
 
 const initialFilters: FilterState = {
@@ -22,6 +23,7 @@ const initialFilters: FilterState = {
   paymentMethod: '',
   minValue: '',
   maxValue: '',
+  type: 'all',
 };
 
 export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseId?: string | null, onClearEditing?: () => void }) => {
@@ -45,6 +47,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterState>(initialFilters);
+  const [historyModalData, setHistoryModalData] = useState<{ title: string; history: any[] } | null>(null);
 
   // Default tab logic based on login
   React.useEffect(() => {
@@ -276,6 +279,9 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     if (activeFilters.paymentMethod && e.currentMonthPaymentMethod !== activeFilters.paymentMethod) return false;
     if (activeFilters.minValue && e.currentMonthValue < parseFloat(activeFilters.minValue)) return false;
     if (activeFilters.maxValue && e.currentMonthValue > parseFloat(activeFilters.maxValue)) return false;
+    
+    if (activeFilters.type === 'fixed' && e.type !== 'fixed') return false;
+    if (activeFilters.type === 'variable' && e.type === 'fixed') return false;
 
     return true;
   }).sort((a, b) => {
@@ -301,8 +307,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
             )}
           >
             <List className="w-4 h-4" /> 
-            <span className="hidden sm:inline">Manual</span>
-            <span className="sm:hidden">Manual</span>
+            <span>Manual</span>
           </button>
           <button
             onClick={() => setActiveTab('fixed')}
@@ -312,8 +317,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
             )}
           >
             <Calendar className="w-4 h-4" /> 
-            <span className="hidden sm:inline">Fixas</span>
-            <span className="sm:hidden">Fixas</span>
+            <span>Fixas</span>
           </button>
           <button
             onClick={() => setActiveTab('chat')}
@@ -323,13 +327,12 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
             )}
           >
             <MessageSquare className="w-4 h-4" /> 
-            <span className="hidden sm:inline">Chat IA</span>
-            <span className="sm:hidden">IA</span>
+            <span>Chat IA</span>
           </button>
         </div>
       </div>
 
-      {activeTab === 'chat' ? (
+      {activeTab === 'chat' && (
         user ? (
           <ExpenseChat 
             filteredExpenses={filteredExpenses}
@@ -337,13 +340,13 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
             viewMonth={viewMonth}
           />
         ) : (
-          <div className="relative h-[400px] sm:h-[600px] bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden flex items-center justify-center p-6 sm:p-8 text-center">
+          <div className="relative h-[300px] bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden flex items-center justify-center p-8 text-center">
             <div className="max-w-xs w-full space-y-4">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-yellow-500/10 rounded-full flex items-center justify-center text-yellow-500 mx-auto">
-                <MessageSquare className="w-6 h-6 sm:w-8 sm:h-8" />
+              <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center text-yellow-500 mx-auto">
+                <MessageSquare className="w-8 h-8" />
               </div>
-              <h3 className="text-lg sm:text-xl font-bold text-zinc-100">Chat IA Bloqueado</h3>
-              <p className="text-zinc-400 text-xs sm:text-sm">
+              <h3 className="text-xl font-bold text-zinc-100">Chat IA Bloqueado</h3>
+              <p className="text-zinc-400 text-sm">
                 Faça login para usar nossa inteligência artificial e lançar gastos por texto ou voz.
               </p>
               <Button onClick={() => setShowLoginModal(true)} className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3">
@@ -352,215 +355,217 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
             </div>
           </div>
         )
-      ) : (
-        <>
-          <Card className="border-yellow-500/50 p-4 sm:p-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {activeTab === 'manual' && (
-                  <>
-                    <Input 
-                      label="Data da Compra" 
-                      type="date"
-                      value={formData.purchaseDate} 
-                      onChange={e => handlePurchaseDateChange(e.target.value)}
-                      required
-                    />
-                    <Input 
-                      label="Mês da Fatura (Início)" 
-                      type="month"
-                      value={formData.billingMonth} 
-                      onChange={e => setFormData({...formData, billingMonth: e.target.value})}
-                      required
-                    />
-                  </>
-                )}
-                <Input 
-                  label="Descrição" 
-                  value={formData.title} 
-                  onChange={e => setFormData({...formData, title: e.target.value})}
-                  required
-                />
-                <Select
-                  label="Categoria"
-                  value={formData.categoryId}
-                  onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
-                >
-                  <option value="">Selecione...</option>
-                  {expenseCategories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </Select>
-                <Select
-                  label="Método de Pagamento"
-                  value={formData.paymentMethod}
-                  onChange={e => setFormData({ ...formData, paymentMethod: e.target.value })}
-                >
-                  <option value="cash">Dinheiro / Débito</option>
-                  {cards.map(c => (
-                    <option key={c.id} value={c.id}>Cartão: {c.name}</option>
-                  ))}
-                </Select>
-                
-                {activeTab === 'manual' && (
-                  <>
-                    <div className="flex items-center gap-2 pt-6">
-                      <input 
-                        type="checkbox" 
-                        id="isInstallment"
-                        checked={formData.isInstallment}
-                        onChange={e => setFormData({...formData, isInstallment: e.target.checked})}
-                        className="w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-yellow-500 focus:ring-yellow-500"
-                      />
-                      <label htmlFor="isInstallment" className="text-sm font-medium text-zinc-300">
-                        Compra Parcelada?
-                      </label>
-                    </div>
+      )}
 
-                    {formData.isInstallment && (
-                      <Input 
-                        label="Nº Parcelas" 
-                        type="number" min="2"
-                        value={formData.totalInstallments} 
-                        onChange={e => handleInstallmentsChange(e.target.value)}
-                        required
-                      />
-                    )}
-                  </>
-                )}
-
-                <Input 
-                  label={activeTab === 'fixed' ? "Valor Mensal" : (formData.isInstallment ? "Valor Total" : "Valor")} 
-                  type="number" step="0.01"
-                  value={formData.totalValue} 
-                  onChange={e => handleTotalValueChange(e.target.value)}
-                  required
-                />
-
-                {activeTab === 'manual' && formData.isInstallment && (
+      {activeTab !== 'chat' && (
+        <Card className="border-yellow-500/50 p-4 sm:p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {activeTab === 'manual' && (
+                <>
                   <Input 
-                    label="Valor da Parcela" 
-                    type="number" step="0.01"
-                    value={formData.installmentValue} 
-                    onChange={e => handleInstallmentValueChange(e.target.value)}
+                    label="Data da Compra" 
+                    type="date"
+                    value={formData.purchaseDate} 
+                    onChange={e => handlePurchaseDateChange(e.target.value)}
                     required
                   />
-                )}
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                {formData.id && (
-                  <Button type="button" variant="ghost" onClick={() => {
-                    if (onClearEditing) onClearEditing();
-                    setFormData({
-                      id: '',
-                      purchaseDate: new Date().toISOString().slice(0, 10),
-                      billingMonth: format(addMonths(new Date(), 1), 'yyyy-MM'),
-                      title: '',
-                      categoryId: '',
-                      paymentMethod: 'cash',
-                      isInstallment: false,
-                      totalInstallments: 2,
-                      totalValue: '',
-                      installmentValue: '',
-                    });
-                  }}>
-                    Cancelar Edição
-                  </Button>
-                )}
-                <Button type="submit" className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold">
-                  {formData.id ? 'Atualizar Despesa' : 'Salvar Despesa'}
-                </Button>
-              </div>
-            </form>
-          </Card>
-
-          <div className="space-y-4">
-            {/* Search and Filter Bar */}
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <Input 
-                  placeholder="Buscar despesa..." 
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="pl-9" 
-                />
-              </div>
-              <Button 
-                variant="secondary" 
-                size="icon" 
-                className="shrink-0 relative"
-                onClick={() => setIsFilterModalOpen(true)}
+                  <Input 
+                    label="Mês da Fatura (Início)" 
+                    type="month"
+                    value={formData.billingMonth} 
+                    onChange={e => setFormData({...formData, billingMonth: e.target.value})}
+                    required
+                  />
+                </>
+              )}
+              <Input 
+                label="Descrição" 
+                value={formData.title} 
+                onChange={e => setFormData({...formData, title: e.target.value})}
+                required
+              />
+              <Select
+                label="Categoria"
+                value={formData.categoryId}
+                onChange={e => setFormData({ ...formData, categoryId: e.target.value })}
               >
-                <Filter className="w-4 h-4" />
-                {Object.values(activeFilters).some(v => v !== '') && (
-                  <span className="absolute top-2 right-2 w-2 h-2 bg-yellow-500 rounded-full" />
-                )}
+                <option value="">Selecione...</option>
+                {expenseCategories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </Select>
+              <Select
+                label="Método de Pagamento"
+                value={formData.paymentMethod}
+                onChange={e => setFormData({ ...formData, paymentMethod: e.target.value })}
+              >
+                <option value="cash">Dinheiro / Débito</option>
+                {cards.map(c => (
+                  <option key={c.id} value={c.id}>Cartão: {c.name}</option>
+                ))}
+              </Select>
+              
+              {activeTab === 'manual' && (
+                <>
+                  <div className="flex items-center gap-2 pt-6">
+                    <input 
+                      type="checkbox" 
+                      id="isInstallment"
+                      checked={formData.isInstallment}
+                      onChange={e => setFormData({...formData, isInstallment: e.target.checked})}
+                      className="w-5 h-5 rounded border-zinc-700 bg-zinc-900 text-yellow-500 focus:ring-yellow-500"
+                    />
+                    <label htmlFor="isInstallment" className="text-sm font-medium text-zinc-300">
+                      Compra Parcelada?
+                    </label>
+                  </div>
+
+                  {formData.isInstallment && (
+                    <Input 
+                      label="Nº Parcelas" 
+                      type="number" min="2"
+                      value={formData.totalInstallments} 
+                      onChange={e => handleInstallmentsChange(e.target.value)}
+                      required
+                    />
+                  )}
+                </>
+              )}
+
+              <Input 
+                label={activeTab === 'fixed' ? "Valor Mensal" : (formData.isInstallment ? "Valor Total" : "Valor")} 
+                type="number" step="0.01"
+                value={formData.totalValue} 
+                onChange={e => handleTotalValueChange(e.target.value)}
+                required
+              />
+
+              {activeTab === 'manual' && formData.isInstallment && (
+                <Input 
+                  label="Valor da Parcela" 
+                  type="number" step="0.01"
+                  value={formData.installmentValue} 
+                  onChange={e => handleInstallmentValueChange(e.target.value)}
+                  required
+                />
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              {formData.id && (
+                <Button type="button" variant="ghost" onClick={() => {
+                  if (onClearEditing) onClearEditing();
+                  setFormData({
+                    id: '',
+                    purchaseDate: new Date().toISOString().slice(0, 10),
+                    billingMonth: format(addMonths(new Date(), 1), 'yyyy-MM'),
+                    title: '',
+                    categoryId: '',
+                    paymentMethod: 'cash',
+                    isInstallment: false,
+                    totalInstallments: 2,
+                    totalValue: '',
+                    installmentValue: '',
+                  });
+                }}>
+                  Cancelar Edição
+                </Button>
+              )}
+              <Button type="submit" className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold">
+                {formData.id ? 'Atualizar Despesa' : 'Salvar Despesa'}
               </Button>
             </div>
+          </form>
+        </Card>
+      )}
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <h3 className="text-lg font-semibold text-zinc-300">Visão da Fatura</h3>
-              
-              <div className="flex items-center bg-zinc-900 rounded-xl p-1 border border-zinc-800">
-                <button onClick={handlePrevMonth} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-yellow-500 transition-colors">
-                  <ArrowLeft className="w-5 h-5" />
-                </button>
-                
-                <div className="relative">
-                  <button 
-                    onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
-                    className="px-4 py-2 font-medium text-zinc-200 min-w-[160px] flex items-center justify-center gap-2 hover:bg-zinc-800 rounded-lg transition-colors capitalize"
-                  >
-                    {format(parseISO(viewMonth + '-01'), 'MMMM yyyy', { locale: ptBR })}
-                    <ChevronDown className={cn("w-4 h-4 transition-transform", isMonthDropdownOpen && "rotate-180")} />
-                  </button>
-
-                  <AnimatePresence>
-                    {isMonthDropdownOpen && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
-                        className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto py-2"
-                      >
-                        {monthOptions.map(m => (
-                          <button
-                            key={m}
-                            onClick={() => {
-                              setViewMonth(m);
-                              setIsMonthDropdownOpen(false);
-                            }}
-                            className={cn(
-                              "w-full px-4 py-2 text-sm text-left hover:bg-zinc-800 transition-colors capitalize",
-                              viewMonth === m ? "text-yellow-500 bg-yellow-500/5" : "text-zinc-400"
-                            )}
-                          >
-                            {format(parseISO(m + '-01'), 'MMMM yyyy', { locale: ptBR })}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                <button onClick={handleNextMonth} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-yellow-500 transition-colors">
-                  <ArrowRight className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            <ExpenseList 
-              expenses={filteredExpenses} 
-              expenseCategories={expenseCategories} 
-              cards={cards} 
-              onEdit={handleEditExpense} 
-              onDelete={deleteExpense} 
+      {/* Unified List Section */}
+      <div className="space-y-4">
+        {/* Search and Filter Bar */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <Input 
+              placeholder="Buscar despesa..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="pl-9" 
             />
           </div>
-        </>
-      )}
+          <Button 
+            variant="secondary" 
+            size="icon" 
+            className="shrink-0 relative"
+            onClick={() => setIsFilterModalOpen(true)}
+          >
+            <Filter className="w-4 h-4" />
+            {Object.values(activeFilters).some(v => v !== '' && v !== 'all') && (
+              <span className="absolute top-2 right-2 w-2 h-2 bg-yellow-500 rounded-full" />
+            )}
+          </Button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <h3 className="text-lg font-semibold text-zinc-300">Visão da Fatura</h3>
+          
+          <div className="flex items-center bg-zinc-900 rounded-xl p-1 border border-zinc-800">
+            <button onClick={handlePrevMonth} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-yellow-500 transition-colors">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            
+            <div className="relative">
+              <button 
+                onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
+                className="px-4 py-2 font-medium text-zinc-200 min-w-[160px] flex items-center justify-center gap-2 hover:bg-zinc-800 rounded-lg transition-colors capitalize"
+              >
+                {format(parseISO(viewMonth + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                <ChevronDown className={cn("w-4 h-4 transition-transform", isMonthDropdownOpen && "rotate-180")} />
+              </button>
+
+              <AnimatePresence>
+                {isMonthDropdownOpen && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto py-2"
+                  >
+                    {monthOptions.map(m => (
+                      <button
+                        key={m}
+                        onClick={() => {
+                          setViewMonth(m);
+                          setIsMonthDropdownOpen(false);
+                        }}
+                        className={cn(
+                          "w-full px-4 py-2 text-sm text-left hover:bg-zinc-800 transition-colors capitalize",
+                          viewMonth === m ? "text-yellow-500 bg-yellow-500/5" : "text-zinc-400"
+                        )}
+                      >
+                        {format(parseISO(m + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <button onClick={handleNextMonth} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-yellow-500 transition-colors">
+              <ArrowRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <ExpenseList 
+          expenses={filteredExpenses} 
+          expenseCategories={expenseCategories} 
+          cards={cards} 
+          onEdit={handleEditExpense} 
+          onDelete={deleteExpense} 
+          onShowHistory={(title, history) => setHistoryModalData({ title, history })}
+        />
+      </div>
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
       
       <FilterModal 
@@ -570,6 +575,13 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
         initialFilters={activeFilters}
         categories={expenseCategories}
         cards={cards}
+      />
+
+      <HistoryModal 
+        isOpen={!!historyModalData}
+        onClose={() => setHistoryModalData(null)}
+        title={historyModalData?.title || ''}
+        history={historyModalData?.history || []}
       />
 
       {/* Installment Edit Modal */}
@@ -678,7 +690,17 @@ const FilterModal = ({
             </button>
           </div>
 
-          <div className="space-y-4">
+            <div className="space-y-4">
+            <Select
+              label="Tipo de Despesa"
+              value={filters.type}
+              onChange={e => setFilters({ ...filters, type: e.target.value as any })}
+            >
+              <option value="all">Todas</option>
+              <option value="fixed">Apenas Fixas</option>
+              <option value="variable">Apenas Variáveis / Avulsas</option>
+            </Select>
+
             <Select
               label="Categoria"
               value={filters.categoryId}
@@ -725,7 +747,7 @@ const FilterModal = ({
               variant="outline" 
               className="flex-1"
               onClick={() => {
-                const empty = { categoryId: '', paymentMethod: '', minValue: '', maxValue: '' };
+                const empty: FilterState = { categoryId: '', paymentMethod: '', minValue: '', maxValue: '', type: 'all' };
                 setFilters(empty);
                 onApply(empty);
                 onClose();
@@ -754,13 +776,15 @@ const ExpenseList = ({
   expenseCategories, 
   cards, 
   onEdit, 
-  onDelete 
+  onDelete,
+  onShowHistory
 }: { 
   expenses: any[], 
   expenseCategories: any[], 
   cards: any[], 
   onEdit: (exp: any) => void, 
-  onDelete: (id: string) => void 
+  onDelete: (id: string) => void,
+  onShowHistory: (title: string, history: any[]) => void
 }) => {
   if (expenses.length === 0) {
     return <div className="text-center py-10 text-zinc-500">Nenhuma despesa para esta fatura.</div>;
@@ -800,6 +824,15 @@ const ExpenseList = ({
             <div className="flex items-center gap-2 sm:gap-4">
               <span className="font-bold text-zinc-200 text-sm sm:text-base">{formatCurrency(displayValue)}</span>
               <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                {exp.type === 'fixed' && (
+                  <button 
+                    onClick={() => onShowHistory(exp.title, exp.valueHistory || [])}
+                    className="p-2 text-zinc-600 hover:text-emerald-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
+                    title="Histórico"
+                  >
+                    <Clock className="w-4 h-4" />
+                  </button>
+                )}
                 <button 
                   onClick={() => onEdit(exp)}
                   className="p-2 text-zinc-600 hover:text-yellow-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
@@ -1077,20 +1110,65 @@ const ExpenseChat = ({
           </div>
         </div>
       </div>
+    </div>
+  );
+};
 
-      {/* Integrated List */}
-      <div className="pt-4 border-t border-zinc-800">
-        <h3 className="text-lg font-semibold text-zinc-300 mb-4">
-          Lançamentos de {format(parseISO(viewMonth + '-01'), 'MMMM', { locale: ptBR })}
-        </h3>
-        <ExpenseList 
-          expenses={filteredExpenses} 
-          expenseCategories={expenseCategories} 
-          cards={cards} 
-          onEdit={onEdit} 
-          onDelete={deleteExpense} 
-        />
-      </div>
+const HistoryModal = ({ 
+  isOpen, 
+  onClose, 
+  title, 
+  history 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  title: string; 
+  history: any[] 
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full max-w-md"
+      >
+        <Card className="relative border-zinc-800 shadow-2xl bg-zinc-950">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-zinc-100">Histórico: {title}</h3>
+            <button onClick={onClose} className="p-2 text-zinc-500 hover:text-zinc-200 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+            {history.length === 0 ? (
+              <p className="text-center text-zinc-500 py-4">Nenhum histórico registrado.</p>
+            ) : (
+              history.map((h, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-zinc-500 capitalize">
+                      {format(parseISO(h.monthYear + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                    </span>
+                    <span className="text-sm font-medium text-zinc-200">
+                      {h.paymentMethod === 'cash' ? 'Dinheiro' : 'Cartão'}
+                    </span>
+                  </div>
+                  <span className="font-bold text-yellow-500">
+                    {formatCurrency(h.value)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="mt-8">
+            <Button className="w-full" onClick={onClose}>Fechar</Button>
+          </div>
+        </Card>
+      </motion.div>
     </div>
   );
 };

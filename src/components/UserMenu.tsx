@@ -9,14 +9,10 @@ interface UserMenuProps {
   user: User | null;
   syncing?: boolean;
   onSync?: () => void;
-  onExport: () => void;
-  onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onClear: () => void;
   onLogin: () => void;
-  fileInputRef: React.RefObject<HTMLInputElement>;
 }
 
-export const UserMenu = ({ user, syncing, onSync, onExport, onImport, onClear, onLogin, fileInputRef }: UserMenuProps) => {
+export const UserMenu = ({ user, syncing, onSync, onLogin }: UserMenuProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -50,7 +46,7 @@ export const UserMenu = ({ user, syncing, onSync, onExport, onImport, onClear, o
               </button>
               <button 
                 onClick={handleLogout}
-                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800"
+                className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
               >
                 <LogOut className="w-4 h-4 text-red-500" />
                 Sair da Conta
@@ -62,53 +58,14 @@ export const UserMenu = ({ user, syncing, onSync, onExport, onImport, onClear, o
                 onLogin();
                 setIsOpen(false);
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800"
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors"
             >
               <LogIn className="w-4 h-4 text-yellow-500" />
               Fazer Login / Cadastro
             </button>
           )}
-          
-          <div className="px-4 py-2 text-[10px] uppercase tracking-wider text-zinc-500 font-bold bg-zinc-950/50">
-            Manutenção Local
-          </div>
-          <button 
-            onClick={onExport}
-            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800"
-          >
-            <Download className="w-4 h-4 text-yellow-500" />
-            Exportar Dados (JSON)
-          </button>
-          <button 
-            onClick={() => {
-              fileInputRef.current?.click();
-              setIsOpen(false);
-            }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800"
-          >
-            <Upload className="w-4 h-4 text-yellow-500" />
-            Importar Dados (JSON)
-          </button>
-          <button 
-            onClick={() => {
-              onClear();
-              setIsOpen(false);
-            }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            Limpar Cache Local
-          </button>
         </motion.div>
       )}
-
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={onImport} 
-        accept=".json" 
-        className="hidden" 
-      />
 
       <button 
         onClick={() => setIsOpen(!isOpen)}

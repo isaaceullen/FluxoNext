@@ -16,16 +16,12 @@ import { CheckCircle2 } from 'lucide-react';
 type View = 'home' | 'income' | 'expenses' | 'dashboard' | 'cards' | 'categories';
 
 function App() {
-  const { user, loading, syncing, syncDataWithCloud } = useFinance();
+  const { user, loading, loadData, isSaving } = useFinance();
   const [currentView, setCurrentView] = useState<View>('home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
-  const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showToast, setShowToast] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const STORAGE_KEY = 'fluxonext_data_v2';
 
   // Hash Routing Logic
   React.useEffect(() => {
@@ -66,50 +62,10 @@ function App() {
     window.location.hash = '#/despesas';
   };
 
-  const handleExport = () => {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return alert('Nenhum dado para exportar.');
-    
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'fluxonext_backup.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const content = event.target?.result as string;
-        JSON.parse(content); // Validate JSON
-        localStorage.setItem(STORAGE_KEY, content);
-        window.location.reload();
-      } catch (err) {
-        alert('Arquivo JSON inválido.');
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleClearAll = () => {
-    localStorage.clear();
-    window.location.reload();
-  };
-
   const handleManualSync = async () => {
-    const success = await syncDataWithCloud(true);
-    if (success) {
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-    }
+    await loadData();
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
   };
 
   return (
@@ -145,13 +101,9 @@ function App() {
         <div className="p-4 border-t border-zinc-800">
           <UserMenu 
             user={user}
-            syncing={syncing}
+            syncing={loading}
             onSync={handleManualSync}
-            onExport={handleExport}
-            onImport={handleImport}
-            onClear={() => setIsClearModalOpen(true)}
             onLogin={() => setShowLoginModal(true)}
-            fileInputRef={fileInputRef}
           />
         </div>
       </aside>
@@ -198,13 +150,9 @@ function App() {
             <div className="pb-8 pt-4 border-t border-zinc-800">
               <UserMenu 
                 user={user}
-                syncing={syncing}
+                syncing={loading}
                 onSync={handleManualSync}
-                onExport={handleExport}
-                onImport={handleImport}
-                onClear={() => setIsClearModalOpen(true)}
                 onLogin={() => setShowLoginModal(true)}
-                fileInputRef={fileInputRef}
               />
             </div>
           </motion.div>
@@ -258,41 +206,6 @@ function App() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Clear Data Confirmation Modal */}
-      {isClearModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
-          >
-            <div className="flex items-center gap-3 text-red-500 mb-4">
-              <AlertTriangle className="w-6 h-6" />
-              <h3 className="text-xl font-bold">Atenção: Ação Irreversível!</h3>
-            </div>
-            
-            <p className="text-zinc-400 mb-8 leading-relaxed">
-              Isso apagará todos os seus gastos, receitas, cartões e categorias. Deseja continuar?
-            </p>
-
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setIsClearModalOpen(false)}
-                className="flex-1 px-4 py-3 rounded-xl bg-zinc-900 text-zinc-300 font-medium hover:bg-zinc-800 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button 
-                onClick={handleClearAll}
-                className="flex-1 px-4 py-3 rounded-xl bg-red-600 text-white font-bold hover:bg-red-500 transition-colors shadow-lg shadow-red-600/20"
-              >
-                Sim, apagar tudo
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
     </div>
   );
 }

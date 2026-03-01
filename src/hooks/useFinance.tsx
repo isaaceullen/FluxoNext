@@ -6,7 +6,44 @@ import { User } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'motion/react';
 import { addMonths, format, parseISO } from 'date-fns';
 
-const useFinanceLogic = () => {
+interface FinanceContextType {
+  user: User | null;
+  loading: boolean;
+  isSaving: boolean;
+  saveSuccess: boolean;
+  expenses: Expense[];
+  incomes: Income[];
+  expenseCategories: Category[];
+  incomeCategories: Category[];
+  cards: CreditCard[];
+  cardPayments: CardPaymentStatus[];
+  lastUsedPaymentMethod: string;
+  setLastUsedPaymentMethod: (method: string) => void;
+  loadData: () => Promise<void>;
+  addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
+  addInstallmentExpense: (baseExpense: Omit<Expense, 'id' | 'installments' | 'billingMonth' | 'type'>, startBillingMonth: string, totalInstallments: number) => Promise<void>;
+  updateExpense: (id: string, updates: Partial<Expense>) => Promise<void>;
+  deleteExpense: (id: string) => Promise<void>;
+  toggleExpensePaid: (id: string) => Promise<void>;
+  updateFixedExpenseValue: (id: string, monthYear: string, newValue: number, newPaymentMethod?: string) => Promise<void>;
+  addIncome: (income: Omit<Income, 'id'>) => Promise<void>;
+  updateIncome: (id: string, updates: Partial<Income>) => Promise<void>;
+  deleteIncome: (id: string) => Promise<void>;
+  updateFixedIncomeValue: (id: string, monthYear: string, newValue: number, paymentMethod?: string) => Promise<void>;
+  addCard: (card: Omit<CreditCard, 'id'>) => Promise<void>;
+  updateCard: (id: string, updates: Partial<CreditCard>) => Promise<void>;
+  deleteCard: (id: string) => Promise<void>;
+  toggleCardPaid: (cardId: string, monthYear: string) => Promise<void>;
+  addCategory: (category: Omit<Category, 'id'>) => Promise<void>;
+  updateCategory: (id: string, updates: Partial<Category>) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
+  getIncomeValueForMonth: (income: Income, monthYear: string) => number;
+  getExpenseValueForMonth: (expense: Expense, monthYear: string) => { value: number; paymentMethod: string };
+}
+
+const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
+
+export const FinanceProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -25,6 +62,7 @@ const useFinanceLogic = () => {
     setTimeout(() => setSaveSuccess(false), 3000);
   };
 
+  // Auth Listener
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -36,6 +74,7 @@ const useFinanceLogic = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // --- BUSCA DE DADOS (Snake to Camel) ---
   const loadData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -106,6 +145,8 @@ const useFinanceLogic = () => {
         monthYear: p.month_year,
         isPaid: p.is_paid
       })));
+    } catch (err) {
+      console.error('Erro ao carregar dados:', err);
     } finally {
       setLoading(false);
     }
@@ -113,76 +154,32 @@ const useFinanceLogic = () => {
 
   useEffect(() => { if (user) loadData(); }, [user, loadData]);
 
+  // --- GRAVAÇÃO DE DADOS (Camel to Snake) ---
   const addExpense = async (expense: Omit<Expense, 'id'>) => {
     if (!user) return;
     setIsSaving(true);
-    const { error } = await supabase.from('expenses').insert({
-      id: uuidv4(),
-      user_id: user.id,
-      title: expense.title,
-      total_value: expense.totalValue,
-      installment_value: expense.installmentValue,
-      purchase_date: expense.purchaseDate,
-      billing_month: expense.billingMonth,
-      is_paid: expense.isPaid,
-      is_installment: expense.isInstallment,
-      category_id: expense.categoryId,
-      payment_method: expense.paymentMethod,
-      type: expense.type,
-      value_history: expense.valueHistory || [],
-      installments_current: expense.installments?.current,
-      installments_total: expense.installments?.total
-    });
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
-  };
-
-  const addCategory = async (category: Omit<Category, 'id'>) => {
-    if (!user) return;
-    setIsSaving(true);
-    const { error } = await supabase.from('categories').insert({
-      id: uuidv4(),
-      user_id: user.id,
-      name: category.name,
-      color: category.color,
-      type: category.type
-    });
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
-  };
-
-  const addIncome = async (income: Omit<Income, 'id'>) => {
-    if (!user) return;
-    setIsSaving(true);
-    const { error } = await supabase.from('incomes').insert({
-      id: uuidv4(),
-      user_id: user.id,
-      title: income.title,
-      category_id: income.categoryId,
-      payment_method: income.paymentMethod,
-      type: income.type,
-      amount: income.amount,
-      start_month: income.startMonth,
-      duration_months: income.durationMonths,
-      value_history: income.valueHistory || []
-    });
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
-  };
-
-  const addCard = async (card: Omit<CreditCard, 'id'>) => {
-    if (!user) return;
-    setIsSaving(true);
-    const { error } = await supabase.from('cards').insert({
-      id: uuidv4(),
-      user_id: user.id,
-      name: card.name,
-      color: card.color,
-      due_day: card.dueDay,
-      closing_day: card.closingDay
-    });
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
+    try {
+      const { error } = await supabase.from('expenses').insert({
+        id: uuidv4(),
+        user_id: user.id,
+        title: expense.title,
+        total_value: expense.totalValue,
+        installment_value: expense.installmentValue,
+        purchase_date: expense.purchaseDate,
+        billing_month: expense.billingMonth,
+        is_paid: expense.isPaid,
+        is_installment: expense.isInstallment,
+        category_id: expense.categoryId,
+        payment_method: expense.paymentMethod,
+        type: expense.type,
+        value_history: expense.valueHistory || [],
+        installments_current: expense.installments?.current,
+        installments_total: expense.installments?.total
+      });
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const addInstallmentExpense = async (
@@ -192,160 +189,85 @@ const useFinanceLogic = () => {
   ) => {
     if (!user) return;
     setIsSaving(true);
-    const newExpenses = [];
-    const originalId = uuidv4();
-    const startDate = parseISO(`${startBillingMonth}-01`);
+    try {
+      const newExpenses = [];
+      const originalId = uuidv4();
+      const startDate = parseISO(`${startBillingMonth}-01`);
 
-    for (let i = 0; i < totalInstallments; i++) {
-      const billingDate = addMonths(startDate, i);
-      const billingMonth = format(billingDate, 'yyyy-MM');
-      
-      newExpenses.push({
-        id: uuidv4(),
-        user_id: user.id,
-        title: baseExpense.title,
-        category_id: baseExpense.categoryId,
-        payment_method: baseExpense.paymentMethod,
-        type: 'installment',
-        total_value: baseExpense.totalValue,
-        installment_value: baseExpense.installmentValue,
-        purchase_date: baseExpense.purchaseDate,
-        billing_month: billingMonth,
-        is_paid: false,
-        is_installment: true,
-        original_id: originalId,
-        installments_current: i + 1,
-        installments_total: totalInstallments,
-        value_history: []
-      });
+      for (let i = 0; i < totalInstallments; i++) {
+        const billingDate = addMonths(startDate, i);
+        const billingMonth = format(billingDate, 'yyyy-MM');
+        
+        newExpenses.push({
+          id: uuidv4(),
+          user_id: user.id,
+          title: baseExpense.title,
+          category_id: baseExpense.categoryId,
+          payment_method: baseExpense.paymentMethod,
+          type: 'installment',
+          total_value: baseExpense.totalValue,
+          installment_value: baseExpense.installmentValue,
+          purchase_date: baseExpense.purchaseDate,
+          billing_month: billingMonth,
+          is_paid: false,
+          is_installment: true,
+          original_id: originalId,
+          installments_current: i + 1,
+          installments_total: totalInstallments,
+          value_history: []
+        });
+      }
+
+      const { error } = await supabase.from('expenses').insert(newExpenses);
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
     }
-
-    const { error } = await supabase.from('expenses').insert(newExpenses);
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
   };
 
   const updateExpense = async (id: string, updates: Partial<Expense>) => {
     if (!user) return;
     setIsSaving(true);
-    const mapped: any = {};
-    if (updates.title !== undefined) mapped.title = updates.title;
-    if (updates.categoryId !== undefined) mapped.category_id = updates.categoryId;
-    if (updates.type !== undefined) mapped.type = updates.type;
-    if (updates.purchaseDate !== undefined) mapped.purchase_date = updates.purchaseDate;
-    if (updates.billingMonth !== undefined) mapped.billing_month = updates.billingMonth;
-    if (updates.isInstallment !== undefined) mapped.is_installment = updates.isInstallment;
-    if (updates.totalValue !== undefined) mapped.total_value = updates.totalValue;
-    if (updates.installmentValue !== undefined) mapped.installment_value = updates.installmentValue;
-    if (updates.paymentMethod !== undefined) mapped.payment_method = updates.paymentMethod;
-    if (updates.isPaid !== undefined) mapped.is_paid = updates.isPaid;
-    if (updates.valueHistory !== undefined) mapped.value_history = updates.valueHistory;
-    if (updates.installments !== undefined) {
-      mapped.installments_current = updates.installments.current;
-      mapped.installments_total = updates.installments.total;
+    try {
+      const mapped: any = {};
+      if (updates.title !== undefined) mapped.title = updates.title;
+      if (updates.categoryId !== undefined) mapped.category_id = updates.categoryId;
+      if (updates.type !== undefined) mapped.type = updates.type;
+      if (updates.purchaseDate !== undefined) mapped.purchase_date = updates.purchaseDate;
+      if (updates.billingMonth !== undefined) mapped.billing_month = updates.billingMonth;
+      if (updates.isInstallment !== undefined) mapped.is_installment = updates.isInstallment;
+      if (updates.totalValue !== undefined) mapped.total_value = updates.totalValue;
+      if (updates.installmentValue !== undefined) mapped.installment_value = updates.installmentValue;
+      if (updates.paymentMethod !== undefined) mapped.payment_method = updates.paymentMethod;
+      if (updates.isPaid !== undefined) mapped.is_paid = updates.isPaid;
+      if (updates.valueHistory !== undefined) mapped.value_history = updates.valueHistory;
+      if (updates.installments !== undefined) {
+        mapped.installments_current = updates.installments.current;
+        mapped.installments_total = updates.installments.total;
+      }
+
+      const { error } = await supabase.from('expenses').update(mapped).eq('id', id);
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
     }
-
-    const { error } = await supabase.from('expenses').update(mapped).eq('id', id);
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
-  };
-
-  const updateIncome = async (id: string, updates: Partial<Income>) => {
-    if (!user) return;
-    setIsSaving(true);
-    const mapped: any = {};
-    if (updates.title !== undefined) mapped.title = updates.title;
-    if (updates.categoryId !== undefined) mapped.category_id = updates.categoryId;
-    if (updates.paymentMethod !== undefined) mapped.payment_method = updates.paymentMethod;
-    if (updates.type !== undefined) mapped.type = updates.type;
-    if (updates.amount !== undefined) mapped.amount = updates.amount;
-    if (updates.startMonth !== undefined) mapped.start_month = updates.startMonth;
-    if (updates.durationMonths !== undefined) mapped.duration_months = updates.durationMonths;
-    if (updates.valueHistory !== undefined) mapped.value_history = updates.valueHistory;
-
-    const { error } = await supabase.from('incomes').update(mapped).eq('id', id);
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
-  };
-
-  const updateCard = async (id: string, updates: Partial<CreditCard>) => {
-    if (!user) return;
-    setIsSaving(true);
-    const mapped: any = {};
-    if (updates.name !== undefined) mapped.name = updates.name;
-    if (updates.color !== undefined) mapped.color = updates.color;
-    if (updates.dueDay !== undefined) mapped.due_day = updates.dueDay;
-    if (updates.closingDay !== undefined) mapped.closing_day = updates.closingDay;
-
-    const { error } = await supabase.from('cards').update(mapped).eq('id', id);
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
-  };
-
-  const updateCategory = async (id: string, updates: Partial<Category>) => {
-    if (!user) return;
-    setIsSaving(true);
-    const mapped: any = {};
-    if (updates.name !== undefined) mapped.name = updates.name;
-    if (updates.color !== undefined) mapped.color = updates.color;
-    if (updates.type !== undefined) mapped.type = updates.type;
-
-    const { error } = await supabase.from('categories').update(mapped).eq('id', id);
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
   };
 
   const deleteExpense = async (id: string) => {
     if (!user) return;
     setIsSaving(true);
-    const { error } = await supabase.from('expenses').delete().eq('id', id);
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
-  };
-
-  const deleteIncome = async (id: string) => {
-    if (!user) return;
-    setIsSaving(true);
-    const { error } = await supabase.from('incomes').delete().eq('id', id);
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
-  };
-
-  const deleteCard = async (id: string) => {
-    if (!user) return;
-    setIsSaving(true);
-    const { error } = await supabase.from('cards').delete().eq('id', id);
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
-  };
-
-  const deleteCategory = async (id: string) => {
-    if (!user) return;
-    setIsSaving(true);
-    const { error } = await supabase.from('categories').delete().eq('id', id);
-    if (!error) { await loadData(); showSuccess(); }
-    setIsSaving(false);
+    try {
+      const { error } = await supabase.from('expenses').delete().eq('id', id);
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const toggleExpensePaid = async (id: string) => {
     const expense = expenses.find(e => e.id === id);
     if (!expense) return;
     await updateExpense(id, { isPaid: !expense.isPaid });
-  };
-
-  const toggleCardPaid = async (cardId: string, monthYear: string) => {
-    if (!user) return;
-    setIsSaving(true);
-    const exists = cardPayments.find(p => p.cardId === cardId && p.monthYear === monthYear);
-    if (exists) {
-      const { error } = await supabase.from('card_payments').update({ is_paid: !exists.isPaid }).eq('card_id', cardId).eq('month_year', monthYear);
-      if (!error) await loadData();
-    } else {
-      const { error } = await supabase.from('card_payments').insert({ user_id: user.id, card_id: cardId, month_year: monthYear, is_paid: true });
-      if (!error) await loadData();
-    }
-    setIsSaving(false);
-    showSuccess();
   };
 
   const updateFixedExpenseValue = async (id: string, monthYear: string, newValue: number, newPaymentMethod?: string) => {
@@ -361,6 +283,60 @@ const useFinanceLogic = () => {
     await updateExpense(id, { valueHistory: unique });
   };
 
+  const addIncome = async (income: Omit<Income, 'id'>) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('incomes').insert({
+        id: uuidv4(),
+        user_id: user.id,
+        title: income.title,
+        category_id: income.categoryId,
+        payment_method: income.paymentMethod,
+        type: income.type,
+        amount: income.amount,
+        start_month: income.startMonth,
+        duration_months: income.durationMonths,
+        value_history: income.valueHistory || []
+      });
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateIncome = async (id: string, updates: Partial<Income>) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const mapped: any = {};
+      if (updates.title !== undefined) mapped.title = updates.title;
+      if (updates.categoryId !== undefined) mapped.category_id = updates.categoryId;
+      if (updates.paymentMethod !== undefined) mapped.payment_method = updates.paymentMethod;
+      if (updates.type !== undefined) mapped.type = updates.type;
+      if (updates.amount !== undefined) mapped.amount = updates.amount;
+      if (updates.startMonth !== undefined) mapped.start_month = updates.startMonth;
+      if (updates.durationMonths !== undefined) mapped.duration_months = updates.durationMonths;
+      if (updates.valueHistory !== undefined) mapped.value_history = updates.valueHistory;
+
+      const { error } = await supabase.from('incomes').update(mapped).eq('id', id);
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteIncome = async (id: string) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('incomes').delete().eq('id', id);
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const updateFixedIncomeValue = async (id: string, monthYear: string, newValue: number, paymentMethod?: string) => {
     const income = incomes.find(i => i.id === id);
     if (!income || income.type !== 'fixed') return;
@@ -372,6 +348,114 @@ const useFinanceLogic = () => {
       return acc;
     }, []);
     await updateIncome(id, { valueHistory: unique });
+  };
+
+  const addCard = async (card: Omit<CreditCard, 'id'>) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('cards').insert({
+        id: uuidv4(),
+        user_id: user.id,
+        name: card.name,
+        color: card.color,
+        due_day: card.dueDay,
+        closing_day: card.closingDay
+      });
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateCard = async (id: string, updates: Partial<CreditCard>) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const mapped: any = {};
+      if (updates.name !== undefined) mapped.name = updates.name;
+      if (updates.color !== undefined) mapped.color = updates.color;
+      if (updates.dueDay !== undefined) mapped.due_day = updates.dueDay;
+      if (updates.closingDay !== undefined) mapped.closing_day = updates.closingDay;
+
+      const { error } = await supabase.from('cards').update(mapped).eq('id', id);
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteCard = async (id: string) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('cards').delete().eq('id', id);
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const toggleCardPaid = async (cardId: string, monthYear: string) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const exists = cardPayments.find(p => p.cardId === cardId && p.monthYear === monthYear);
+      if (exists) {
+        const { error } = await supabase.from('card_payments').update({ is_paid: !exists.isPaid }).eq('card_id', cardId).eq('month_year', monthYear);
+        if (!error) await loadData();
+      } else {
+        const { error } = await supabase.from('card_payments').insert({ user_id: user.id, card_id: cardId, month_year: monthYear, is_paid: true });
+        if (!error) await loadData();
+      }
+      showSuccess();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const addCategory = async (category: Omit<Category, 'id'>) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('categories').insert({
+        id: uuidv4(),
+        user_id: user.id,
+        name: category.name,
+        color: category.color,
+        type: category.type
+      });
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateCategory = async (id: string, updates: Partial<Category>) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const mapped: any = {};
+      if (updates.name !== undefined) mapped.name = updates.name;
+      if (updates.color !== undefined) mapped.color = updates.color;
+      if (updates.type !== undefined) mapped.type = updates.type;
+
+      const { error } = await supabase.from('categories').update(mapped).eq('id', id);
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteCategory = async (id: string) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase.from('categories').delete().eq('id', id);
+      if (!error) { await loadData(); showSuccess(); }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const getIncomeValueForMonth = (income: Income, monthYear: string): number => {
@@ -397,27 +481,28 @@ const useFinanceLogic = () => {
     return expense.billingMonth === monthYear ? { value: expense.installmentValue, paymentMethod: expense.paymentMethod } : { value: 0, paymentMethod: expense.paymentMethod };
   };
 
-  return {
+  const value = {
     user, loading, isSaving, saveSuccess, expenses, incomes, expenseCategories, incomeCategories, cards, cardPayments,
+    lastUsedPaymentMethod, setLastUsedPaymentMethod, loadData,
     addExpense, addInstallmentExpense, updateExpense, deleteExpense, toggleExpensePaid, updateFixedExpenseValue,
     addIncome, updateIncome, deleteIncome, updateFixedIncomeValue,
     addCard, updateCard, deleteCard, toggleCardPaid,
     addCategory, updateCategory, deleteCategory,
-    getIncomeValueForMonth, getExpenseValueForMonth,
-    lastUsedPaymentMethod, setLastUsedPaymentMethod: setLastUsedPaymentMethod
+    getIncomeValueForMonth, getExpenseValueForMonth
   };
-};
 
-const FinanceContext = createContext<ReturnType<typeof useFinanceLogic> | undefined>(undefined);
-export const FinanceProvider = ({ children }: { children: ReactNode }) => {
-  const financeData = useFinanceLogic();
   return (
-    <FinanceContext.Provider value={financeData}>
+    <FinanceContext.Provider value={value}>
       {children}
       <AnimatePresence>
-        {financeData.isSaving && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md">
-            <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl text-center space-y-4">
+        {isSaving && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md"
+          >
+            <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl text-center space-y-4 shadow-2xl">
               <div className="w-12 h-12 border-4 border-yellow-500/20 border-t-yellow-500 rounded-full animate-spin mx-auto" />
               <p className="text-zinc-100 font-bold">⚠️ Sincronizando com a nuvem...</p>
             </div>
@@ -427,6 +512,7 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
     </FinanceContext.Provider>
   );
 };
+
 export const useFinance = () => {
   const context = useContext(FinanceContext);
   if (!context) throw new Error('useFinance must be used within a FinanceProvider');

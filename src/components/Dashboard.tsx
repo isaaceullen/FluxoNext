@@ -15,8 +15,8 @@ export const Dashboard = () => {
 
   const monthOptions = useMemo(() => {
     return eachMonthOfInterval({
-      start: subMonths(new Date(), 12 * 2),
-      end: addMonths(new Date(), 12 * 5)
+      start: new Date(2024, 0, 1),
+      end: addMonths(new Date(), 12 * 10)
     }).map(date => format(date, 'yyyy-MM'));
   }, []);
 

@@ -164,7 +164,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
   const handleNextMonth = () => setViewMonth(prev => format(addMonths(parseISO(prev + '-01'), 1), 'yyyy-MM'));
 
   const monthOptions = eachMonthOfInterval({
-    start: subMonths(new Date(), 12 * 5), // 5 years past
+    start: new Date(2024, 0, 1),
     end: addMonths(new Date(), 12 * 10) // 10 years future
   }).map(date => format(date, 'yyyy-MM'));
 

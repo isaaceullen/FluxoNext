@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useFinance } from '../hooks/useFinance';
 import { Card, Button } from './ui';
-import { ArrowLeft, ArrowRight, TrendingUp, TrendingDown, Wallet, CreditCard as CardIcon, CheckCircle, Circle, ChevronDown, Edit2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, TrendingUp, TrendingDown, Wallet, CreditCard as CardIcon, CheckCircle, Circle, ChevronDown, Edit2, X, AlertTriangle } from 'lucide-react';
 import { format, addMonths, subMonths, parseISO, startOfMonth, eachMonthOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatCurrency, cn } from '../utils';
@@ -38,9 +38,32 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
 
   const cashExpenses = monthlyExpenses.filter(e => e.currentMonthPaymentMethod === 'cash');
 
-  // Month Dropdown Options (Last 5 years + Next 10 years)
+  // Pending Items Calculation (Previous Month)
+  const prevMonthStr = format(subMonths(parseISO(selectedMonth + '-01'), 1), 'yyyy-MM');
+  
+  const pendingCards = cards.filter(card => {
+    const cardExpensesPrev = expenses.map(e => {
+      const { value, paymentMethod } = getExpenseValueForMonth(e, prevMonthStr);
+      return { value, paymentMethod };
+    }).filter(e => e.value > 0 && e.paymentMethod === card.id);
+    
+    const totalPrev = cardExpensesPrev.reduce((acc, e) => acc + e.value, 0);
+    if (totalPrev === 0) return false;
+
+    const isPaid = cardPayments.find(p => p.cardId === card.id && p.monthYear === prevMonthStr)?.isPaid;
+    return !isPaid;
+  });
+
+  const pendingCash = expenses.filter(e => {
+    const { value, paymentMethod } = getExpenseValueForMonth(e, prevMonthStr);
+    return value > 0 && paymentMethod === 'cash' && !e.isPaid;
+  });
+
+  const totalPending = pendingCards.length + pendingCash.length;
+
+  // Month Dropdown Options (From 2024 to 10 years future)
   const monthOptions = eachMonthOfInterval({
-    start: subMonths(new Date(), 12 * 5),
+    start: new Date(2024, 0, 1),
     end: addMonths(new Date(), 12 * 10)
   }).map(date => format(date, 'yyyy-MM'));
 
@@ -57,8 +80,27 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
             Hoje, {format(new Date(), "dd/MM/yyyy")}
           </p>
         </div>
+
+        {/* Pending Items Banner */}
+        <AnimatePresence>
+          {totalPending > 0 && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, scale: 0.95 }}
+              animate={{ opacity: 1, height: 'auto', scale: 1 }}
+              exit={{ opacity: 0, height: 0, scale: 0.95 }}
+              className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-3 flex items-center gap-3 text-yellow-500 md:mx-4 flex-1"
+            >
+              <div className="p-1.5 bg-yellow-500/20 rounded-full shrink-0">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+              <p className="font-medium text-sm">
+                ⚠️ Você tem <span className="font-bold">{totalPending} pendências</span> do mês anterior (Faturas/Dinheiro).
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
         
-        <div className="relative flex items-center bg-zinc-900 rounded-xl p-1 border border-zinc-800">
+        <div className="relative flex items-center bg-zinc-900 rounded-xl p-1 border border-zinc-800 shrink-0">
           <button onClick={handlePrevMonth} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-yellow-500 transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>

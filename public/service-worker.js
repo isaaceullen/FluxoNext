@@ -15,6 +15,14 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+  
+  // Bypass cache for Supabase requests
+  if (url.hostname.includes('supabase.co')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then(response => {

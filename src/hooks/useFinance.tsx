@@ -48,6 +48,7 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -62,7 +63,12 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
     setTimeout(() => setSaveSuccess(false), 3000);
   };
 
-  // Auth Listener
+  const showError = (msg: string) => {
+    setSyncError(msg);
+    setTimeout(() => setSyncError(null), 5000);
+  };
+
+  // Auth Listener & Realtime Subscription
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -71,13 +77,27 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
-    return () => subscription.unsubscribe();
+
+    // Realtime Subscription
+    const channel = supabase
+      .channel('db_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incomes' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'card_payments' }, () => loadData())
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // --- BUSCA DE DADOS (Snake to Camel) ---
   const loadData = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
+    // setLoading(true); // Removido para evitar flicker no realtime
     try {
       const [dbCards, dbCats, dbIncs, dbExps, dbPays] = await Promise.all([
         supabase.from('cards').select('*').eq('user_id', user.id),
@@ -86,6 +106,12 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
         supabase.from('expenses').select('*').eq('user_id', user.id),
         supabase.from('card_payments').select('*').eq('user_id', user.id)
       ]);
+
+      if (dbCards.error) throw dbCards.error;
+      if (dbCats.error) throw dbCats.error;
+      if (dbIncs.error) throw dbIncs.error;
+      if (dbExps.error) throw dbExps.error;
+      if (dbPays.error) throw dbPays.error;
 
       if (dbCards.data) setCards(dbCards.data.map(c => ({
         id: c.id,
@@ -145,8 +171,11 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
         monthYear: p.month_year,
         isPaid: p.is_paid
       })));
-    } catch (err) {
+      
+      setSyncError(null);
+    } catch (err: any) {
       console.error('Erro ao carregar dados:', err);
+      showError('Erro ao sincronizar dados. Verifique sua conexão.');
     } finally {
       setLoading(false);
     }
@@ -176,7 +205,17 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
         installments_current: expense.installments?.current,
         installments_total: expense.installments?.total
       });
-      if (!error) { await loadData(); showSuccess(); }
+      
+      if (error) {
+        console.error('Erro ao adicionar despesa:', error);
+        showError('Falha ao salvar despesa: ' + error.message);
+        throw error;
+      }
+      
+      await loadData(); 
+      showSuccess();
+    } catch (err) {
+      // Já tratado acima
     } finally {
       setIsSaving(false);
     }
@@ -219,7 +258,17 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const { error } = await supabase.from('expenses').insert(newExpenses);
-      if (!error) { await loadData(); showSuccess(); }
+      
+      if (error) {
+        console.error('Erro ao adicionar parcelas:', error);
+        showError('Falha ao salvar parcelas: ' + error.message);
+        throw error;
+      }
+
+      await loadData(); 
+      showSuccess();
+    } catch (err) {
+      // Já tratado
     } finally {
       setIsSaving(false);
     }
@@ -506,6 +555,16 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
               <div className="w-12 h-12 border-4 border-yellow-500/20 border-t-yellow-500 rounded-full animate-spin mx-auto" />
               <p className="text-zinc-100 font-bold">⚠️ Sincronizando com a nuvem...</p>
             </div>
+          </motion.div>
+        )}
+        {syncError && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, y: 50 }} 
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] bg-red-500 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-3 font-medium"
+          >
+            ❌ {syncError}
           </motion.div>
         )}
       </AnimatePresence>

@@ -25,7 +25,6 @@ const useFinanceLogic = () => {
     setTimeout(() => setSaveSuccess(false), 3000);
   };
 
-  // Auth Listener
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -37,12 +36,11 @@ const useFinanceLogic = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // --- BUSCA DE DADOS (Snake to Camel) ---
   const loadData = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const [crd, cat, inc, exp, pay] = await Promise.all([
+      const [dbCards, dbCats, dbIncs, dbExps, dbPays] = await Promise.all([
         supabase.from('cards').select('*').eq('user_id', user.id),
         supabase.from('categories').select('*').eq('user_id', user.id),
         supabase.from('incomes').select('*').eq('user_id', user.id),
@@ -50,22 +48,22 @@ const useFinanceLogic = () => {
         supabase.from('card_payments').select('*').eq('user_id', user.id)
       ]);
 
-      if (crd.data) setCards(crd.data.map(c => ({ 
+      if (dbCards.data) setCards(dbCards.data.map(c => ({
         id: c.id,
         name: c.name,
         closingDay: c.closing_day,
         dueDay: c.due_day,
         color: c.color
       })));
-      
-      if (cat.data) {
-        setIncomeCategories(cat.data.filter(c => c.type === 'income').map(c => ({
+
+      if (dbCats.data) {
+        setIncomeCategories(dbCats.data.filter(c => c.type === 'income').map(c => ({
           id: c.id,
           name: c.name,
           color: c.color,
           type: c.type
         })));
-        setExpenseCategories(cat.data.filter(c => c.type === 'expense').map(c => ({
+        setExpenseCategories(dbCats.data.filter(c => c.type === 'expense').map(c => ({
           id: c.id,
           name: c.name,
           color: c.color,
@@ -73,7 +71,7 @@ const useFinanceLogic = () => {
         })));
       }
 
-      if (inc.data) setIncomes(inc.data.map(i => ({
+      if (dbIncs.data) setIncomes(dbIncs.data.map(i => ({
         id: i.id,
         title: i.title,
         categoryId: i.category_id,
@@ -85,7 +83,7 @@ const useFinanceLogic = () => {
         valueHistory: i.value_history
       })));
 
-      if (exp.data) setExpenses(exp.data.map(e => ({
+      if (dbExps.data) setExpenses(dbExps.data.map(e => ({
         id: e.id,
         title: e.title,
         categoryId: e.category_id,
@@ -103,14 +101,11 @@ const useFinanceLogic = () => {
         installments: e.installments_current ? { current: e.installments_current, total: e.installments_total } : undefined
       })));
 
-      if (pay.data) setCardPayments(pay.data.map(p => ({
+      if (dbPays.data) setCardPayments(dbPays.data.map(p => ({
         cardId: p.card_id,
         monthYear: p.month_year,
         isPaid: p.is_paid
       })));
-
-    } catch (err) {
-      console.error('Erro ao carregar:', err);
     } finally {
       setLoading(false);
     }
@@ -118,7 +113,6 @@ const useFinanceLogic = () => {
 
   useEffect(() => { if (user) loadData(); }, [user, loadData]);
 
-  // --- GRAVAÇÃO DE DADOS (Camel to Snake) ---
   const addExpense = async (expense: Omit<Expense, 'id'>) => {
     if (!user) return;
     setIsSaving(true);
@@ -410,11 +404,10 @@ const useFinanceLogic = () => {
     addCard, updateCard, deleteCard, toggleCardPaid,
     addCategory, updateCategory, deleteCategory,
     getIncomeValueForMonth, getExpenseValueForMonth,
-    lastUsedPaymentMethod, setLastUsedPaymentMethod
+    lastUsedPaymentMethod, setLastUsedPaymentMethod: setLastUsedPaymentMethod
   };
 };
 
-// Context & Provider
 const FinanceContext = createContext<ReturnType<typeof useFinanceLogic> | undefined>(undefined);
 export const FinanceProvider = ({ children }: { children: ReactNode }) => {
   const financeData = useFinanceLogic();
@@ -424,9 +417,9 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
       <AnimatePresence>
         {financeData.isSaving && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md">
-            <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl shadow-2xl text-center space-y-4">
+            <div className="bg-zinc-900 border border-zinc-800 p-8 rounded-3xl text-center space-y-4">
               <div className="w-12 h-12 border-4 border-yellow-500/20 border-t-yellow-500 rounded-full animate-spin mx-auto" />
-              <p className="text-zinc-100 font-bold">Sincronizando com a nuvem...</p>
+              <p className="text-zinc-100 font-bold">⚠️ Sincronizando com a nuvem...</p>
             </div>
           </motion.div>
         )}

@@ -11,9 +11,9 @@ export const Cards = () => {
   const [newCard, setNewCard] = useState({ name: '', closingDay: 1, dueDay: 10, color: '#820AD1' });
   const [editForm, setEditForm] = useState({ name: '', closingDay: 1, dueDay: 10, color: '' });
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newCard.name) return;
-    addCard(newCard);
+    await addCard(newCard);
     setNewCard({ name: '', closingDay: 1, dueDay: 10, color: '#820AD1' });
     setIsAdding(false);
   };
@@ -23,9 +23,9 @@ export const Cards = () => {
     setEditForm({ name: card.name, closingDay: card.closingDay, dueDay: card.dueDay, color: card.color });
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (editingId && editForm.name) {
-      updateCard(editingId, editForm);
+      await updateCard(editingId, editForm);
       setEditingId(null);
     }
   };

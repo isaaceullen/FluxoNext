@@ -186,7 +186,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title || !formData.totalValue) return;
 
@@ -206,13 +206,13 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
       };
 
       if (activeTab === 'fixed') {
-        updateFixedExpenseValue(formData.id, formData.effectiveMonth, totalVal, formData.paymentMethod);
-        updateExpense(formData.id, { title: formData.title, categoryId: formData.categoryId });
+        await updateFixedExpenseValue(formData.id, formData.effectiveMonth, totalVal, formData.paymentMethod);
+        await updateExpense(formData.id, { title: formData.title, categoryId: formData.categoryId });
       } else if (exp?.originalId) {
         // It's an installment, show modal
         setInstallmentEditData({ expense: exp, updates });
       } else {
-        updateExpense(formData.id, updates);
+        await updateExpense(formData.id, updates);
       }
       if (onClearEditing) onClearEditing();
     } else {
@@ -230,15 +230,15 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
       };
 
       if (activeTab === 'fixed') {
-        addExpense({
+        await addExpense({
           ...baseData,
           type: 'fixed',
           valueHistory: [{ monthYear: formData.effectiveMonth, value: totalVal, paymentMethod: formData.paymentMethod }]
         });
       } else if (formData.isInstallment) {
-        addInstallmentExpense(baseData, formData.billingMonth, formData.totalInstallments);
+        await addInstallmentExpense(baseData, formData.billingMonth, formData.totalInstallments);
       } else {
-        addExpense({ ...baseData, type: 'one_time' });
+        await addExpense({ ...baseData, type: 'one_time' });
       }
     }
 
@@ -913,7 +913,7 @@ const ExpenseChat = ({
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!extractedData) return;
 
     // Find IDs or use defaults
@@ -944,9 +944,9 @@ const ExpenseChat = ({
     };
 
     if (baseData.isInstallment) {
-      addInstallmentExpense(baseData, baseData.billingMonth, extractedData.installments || 1);
+      await addInstallmentExpense(baseData, baseData.billingMonth, extractedData.installments || 1);
     } else {
-      addExpense({ ...baseData, type: 'one_time' });
+      await addExpense({ ...baseData, type: 'one_time' });
     }
 
     setLastUsedPaymentMethod(paymentMethod);

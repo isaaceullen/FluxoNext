@@ -16,9 +16,9 @@ export const Categories = () => {
 
   const currentCategories = activeTab === 'expense' ? expenseCategories : incomeCategories;
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newCategory.name) return;
-    addCategory({ ...newCategory, type: activeTab });
+    await addCategory({ ...newCategory, type: activeTab });
     setNewCategory({ name: '', color: '#F59E0B' });
     setIsAdding(false);
   };
@@ -28,9 +28,9 @@ export const Categories = () => {
     setEditForm({ name: category.name, color: category.color });
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (editingId && editForm.name) {
-      updateCategory(editingId, editForm);
+      await updateCategory(editingId, editForm);
       setEditingId(null);
     }
   };

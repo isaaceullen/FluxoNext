@@ -26,7 +26,7 @@ export const Income = () => {
     effectiveMonth: new Date().toISOString().slice(0, 7),
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amount = parseFloat(formData.amount);
     if (!amount || !formData.title) return;
@@ -39,12 +39,12 @@ export const Income = () => {
     };
 
     if (incomeType === 'fixed') {
-      addIncome({
+      await addIncome({
         ...baseData,
         valueHistory: [{ monthYear: formData.effectiveMonth, value: amount, paymentMethod: formData.paymentMethod }]
       });
     } else {
-      addIncome({
+      await addIncome({
         ...baseData,
         amount,
         startMonth: formData.startMonth,
@@ -81,7 +81,7 @@ export const Income = () => {
     });
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (editingId && editForm.title && editForm.amount) {
       const income = incomes.find(i => i.id === editingId);
       if (!income) return;
@@ -89,13 +89,13 @@ export const Income = () => {
       const newAmount = parseFloat(editForm.amount);
 
       if (income.type === 'fixed') {
-        updateIncome(editingId, {
+        await updateIncome(editingId, {
           title: editForm.title,
           categoryId: editForm.category
         });
-        updateFixedIncomeValue(editingId, editForm.effectiveMonth, newAmount, editForm.paymentMethod);
+        await updateFixedIncomeValue(editingId, editForm.effectiveMonth, newAmount, editForm.paymentMethod);
       } else {
-        updateIncome(editingId, {
+        await updateIncome(editingId, {
           title: editForm.title,
           amount: newAmount,
           categoryId: editForm.category,

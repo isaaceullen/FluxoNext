@@ -8,7 +8,7 @@ import { formatCurrency, cn } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => void }) => {
-  const { incomes, expenses, cards, cardPayments, toggleExpensePaid, toggleCardPaid, getIncomeValueForMonth, getExpenseValueForMonth } = useFinance();
+  const { incomes, expenses, cards, cardPayments, expensePayments, toggleExpensePaid, toggleCardPaid, getIncomeValueForMonth, getExpenseValueForMonth } = useFinance();
   const [selectedMonth, setSelectedMonth] = useState(format(addMonths(new Date(), 1), 'yyyy-MM'));
   const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -23,7 +23,12 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
   // Get all expenses for this month (one_time, installment, and fixed)
   const monthlyExpenses = expenses.map(e => {
     const { value, paymentMethod } = getExpenseValueForMonth(e, selectedMonth);
-    return { ...e, currentMonthValue: value, currentMonthPaymentMethod: paymentMethod };
+    let isPaid = e.isPaid;
+    if (e.type === 'fixed' || e.type === 'installment') {
+      const payment = expensePayments.find(p => p.expenseId === e.id && p.monthYear === selectedMonth);
+      isPaid = payment ? payment.isPaid : false;
+    }
+    return { ...e, currentMonthValue: value, currentMonthPaymentMethod: paymentMethod, isPaid };
   }).filter(e => e.currentMonthValue > 0);
 
   const totalExpenses = monthlyExpenses.reduce((acc, exp) => acc + exp.currentMonthValue, 0);
@@ -56,7 +61,12 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
 
   const pendingCash = expenses.filter(e => {
     const { value, paymentMethod } = getExpenseValueForMonth(e, prevMonthStr);
-    return value > 0 && paymentMethod === 'cash' && !e.isPaid;
+    let isPaid = e.isPaid;
+    if (e.type === 'fixed' || e.type === 'installment') {
+       const payment = expensePayments.find(p => p.expenseId === e.id && p.monthYear === prevMonthStr);
+       isPaid = payment ? payment.isPaid : false;
+    }
+    return value > 0 && paymentMethod === 'cash' && !isPaid;
   });
 
   const totalPending = pendingCards.length + pendingCash.length;
@@ -243,7 +253,7 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
                 <div key={exp.id} className="flex items-center justify-between group">
                   <div className="flex items-center gap-3">
                      <button 
-                      onClick={() => toggleExpensePaid(exp.id)}
+                      onClick={() => toggleExpensePaid(exp.id, selectedMonth)}
                       className={cn("transition-colors", exp.isPaid ? "text-emerald-500" : "text-zinc-600 hover:text-zinc-400")}
                     >
                       {exp.isPaid ? <CheckCircle className="w-5 h-5" /> : <Circle className="w-5 h-5" />}

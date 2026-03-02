@@ -63,6 +63,14 @@ export interface CardPaymentStatus {
   isPaid: boolean;
 }
 
+export interface ExpensePayment {
+  id: string;
+  expenseId: string;
+  monthYear: string;
+  isPaid: boolean;
+  paidValue: number;
+}
+
 export interface ExtractedData {
   name?: string;
   value?: number;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
-import { Income, Expense, Category, CreditCard, CardPaymentStatus } from '../types';
+import { Income, Expense, Category, CreditCard, CardPaymentStatus, ExpensePayment } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
@@ -17,6 +17,7 @@ interface FinanceContextType {
   incomeCategories: Category[];
   cards: CreditCard[];
   cardPayments: CardPaymentStatus[];
+  expensePayments: ExpensePayment[];
   lastUsedPaymentMethod: string;
   setLastUsedPaymentMethod: (method: string) => void;
   loadData: () => Promise<void>;
@@ -24,7 +25,7 @@ interface FinanceContextType {
   addInstallmentExpense: (baseExpense: Omit<Expense, 'id' | 'installments' | 'billingMonth' | 'type'>, startBillingMonth: string, totalInstallments: number) => Promise<void>;
   updateExpense: (id: string, updates: Partial<Expense>) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
-  toggleExpensePaid: (id: string) => Promise<void>;
+  toggleExpensePaid: (id: string, monthYear?: string) => Promise<void>;
   updateFixedExpenseValue: (id: string, monthYear: string, newValue: number, newPaymentMethod?: string) => Promise<void>;
   addIncome: (income: Omit<Income, 'id'>) => Promise<void>;
   updateIncome: (id: string, updates: Partial<Income>) => Promise<void>;
@@ -56,6 +57,7 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
   const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
   const [cards, setCards] = useState<CreditCard[]>([]);
   const [cardPayments, setCardPayments] = useState<CardPaymentStatus[]>([]);
+  const [expensePayments, setExpensePayments] = useState<ExpensePayment[]>([]);
   const [lastUsedPaymentMethod, setLastUsedPaymentMethod] = useState('cash');
 
   const showSuccess = () => {
@@ -86,6 +88,7 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, () => loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => loadData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'card_payments' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expense_payments' }, () => loadData())
       .subscribe();
 
     return () => {
@@ -99,12 +102,13 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return;
     // setLoading(true); // Removido para evitar flicker no realtime
     try {
-      const [dbCards, dbCats, dbIncs, dbExps, dbPays] = await Promise.all([
+      const [dbCards, dbCats, dbIncs, dbExps, dbPays, dbExpPays] = await Promise.all([
         supabase.from('cards').select('*').eq('user_id', user.id),
         supabase.from('categories').select('*').eq('user_id', user.id),
         supabase.from('incomes').select('*').eq('user_id', user.id),
         supabase.from('expenses').select('*').eq('user_id', user.id),
-        supabase.from('card_payments').select('*').eq('user_id', user.id)
+        supabase.from('card_payments').select('*').eq('user_id', user.id),
+        supabase.from('expense_payments').select('*').eq('user_id', user.id)
       ]);
 
       if (dbCards.error) throw dbCards.error;
@@ -112,6 +116,7 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
       if (dbIncs.error) throw dbIncs.error;
       if (dbExps.error) throw dbExps.error;
       if (dbPays.error) throw dbPays.error;
+      if (dbExpPays.error) throw dbExpPays.error;
 
       if (dbCards.data) setCards(dbCards.data.map(c => ({
         id: c.id,
@@ -170,6 +175,14 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
         cardId: p.card_id,
         monthYear: p.month_year,
         isPaid: p.is_paid
+      })));
+
+      if (dbExpPays.data) setExpensePayments(dbExpPays.data.map(p => ({
+        id: p.id,
+        expenseId: p.expense_id,
+        monthYear: p.month_year,
+        isPaid: p.is_paid,
+        paidValue: p.paid_value
       })));
       
       setSyncError(null);
@@ -313,10 +326,40 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const toggleExpensePaid = async (id: string) => {
+  const toggleExpensePaid = async (id: string, monthYear?: string) => {
     const expense = expenses.find(e => e.id === id);
     if (!expense) return;
-    await updateExpense(id, { isPaid: !expense.isPaid });
+
+    if (expense.type === 'one_time') {
+      await updateExpense(id, { isPaid: !expense.isPaid });
+    } else if (monthYear && (expense.type === 'fixed' || expense.type === 'installment')) {
+      const existingPayment = expensePayments.find(p => p.expenseId === id && p.monthYear === monthYear);
+      const { value } = getExpenseValueForMonth(expense, monthYear);
+
+      if (!user) return;
+      setIsSaving(true);
+      try {
+        if (existingPayment) {
+          const { error } = await supabase.from('expense_payments')
+            .update({ is_paid: !existingPayment.isPaid, paid_value: value })
+            .eq('id', existingPayment.id);
+          if (!error) await loadData();
+        } else {
+          const { error } = await supabase.from('expense_payments').insert({
+            id: uuidv4(),
+            user_id: user.id,
+            expense_id: id,
+            month_year: monthYear,
+            is_paid: true,
+            paid_value: value
+          });
+          if (!error) await loadData();
+        }
+        showSuccess();
+      } finally {
+        setIsSaving(false);
+      }
+    }
   };
 
   const updateFixedExpenseValue = async (id: string, monthYear: string, newValue: number, newPaymentMethod?: string) => {

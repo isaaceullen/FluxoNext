@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useFinance } from '../hooks/useFinance';
 import { Card, Button, Input, Select } from './ui';
-import { Plus, Trash2, Calendar, CreditCard as CardIcon, DollarSign, MessageSquare, List, Send, Check, Edit2, ArrowLeft, ArrowRight, ChevronDown, X, Search, Filter, Clock, CheckCircle, Circle } from 'lucide-react';
+import { Plus, Trash2, Calendar, CreditCard as CardIcon, DollarSign, MessageSquare, List, Send, Check, Edit2, ArrowLeft, ArrowRight, ChevronDown, X, Search, Filter, Clock } from 'lucide-react';
 import { formatCurrency, cn } from '../utils';
 import { format, parseISO, addMonths, subMonths, eachMonthOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -40,8 +40,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     lastUsedPaymentMethod,
     setLastUsedPaymentMethod,
     getExpenseValueForMonth,
-    expensePayments,
-    toggleExpensePaid
+    expensePayments
   } = useFinance();
   const [activeTab, setActiveTab] = useState<'manual' | 'fixed' | 'chat'>('manual');
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -585,8 +584,6 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
           onEdit={handleEditExpense} 
           onDelete={deleteExpense} 
           onShowHistory={(title, history) => setHistoryModalData({ title, history })}
-          onTogglePaid={toggleExpensePaid}
-          viewMonth={viewMonth}
         />
       </div>
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
@@ -800,18 +797,14 @@ const ExpenseList = ({
   cards, 
   onEdit, 
   onDelete,
-  onShowHistory,
-  onTogglePaid,
-  viewMonth
+  onShowHistory
 }: { 
   expenses: any[], 
   expenseCategories: any[], 
   cards: any[], 
   onEdit: (exp: any) => void, 
   onDelete: (id: string) => void,
-  onShowHistory: (title: string, history: any[]) => void,
-  onTogglePaid: (id: string, monthYear: string) => void,
-  viewMonth: string
+  onShowHistory: (title: string, history: any[]) => void
 }) => {
   if (expenses.length === 0) {
     return <div className="text-center py-10 text-zinc-500">Nenhuma despesa para esta fatura.</div>;
@@ -828,12 +821,6 @@ const ExpenseList = ({
         return (
           <div key={exp.id} className={cn("bg-zinc-900/50 border border-zinc-800 p-3 sm:p-4 rounded-xl flex items-center justify-between group", isPaid && "opacity-60")}>
             <div className="flex items-center gap-3 sm:gap-4">
-              <button 
-                onClick={() => onTogglePaid(exp.id, viewMonth)}
-                className={cn("transition-colors", isPaid ? "text-emerald-500" : "text-zinc-600 hover:text-zinc-400")}
-              >
-                {isPaid ? <CheckCircle className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
-              </button>
               <div className="p-2 bg-red-500/10 rounded-lg text-red-500">
                 {card ? <CardIcon className="w-4 h-4 sm:w-5 sm:h-5" /> : <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />}
               </div>

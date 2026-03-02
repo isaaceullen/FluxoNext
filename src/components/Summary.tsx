@@ -330,7 +330,7 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
                           if (onEditExpense) onEditExpense(exp.id);
                           setSelectedCardId(null);
                         }}
-                        className="p-2 text-zinc-600 hover:text-yellow-500 transition-colors opacity-0 group-hover:opacity-100"
+                        className="p-2 text-zinc-400 hover:text-white transition-colors opacity-0 group-hover:opacity-100"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>

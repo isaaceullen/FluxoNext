@@ -25,7 +25,7 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
     const { value, paymentMethod } = getExpenseValueForMonth(e, selectedMonth);
     let isPaid = e.isPaid;
     if (e.type === 'fixed' || e.type === 'installment') {
-      const payment = expensePayments.find(p => p.expenseId === e.id && p.monthYear === selectedMonth);
+      const payment = (expensePayments || []).find(p => p.expenseId === e.id && p.monthYear === selectedMonth);
       isPaid = payment ? payment.isPaid : false;
     }
     return { ...e, currentMonthValue: value, currentMonthPaymentMethod: paymentMethod, isPaid };
@@ -63,7 +63,7 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
     const { value, paymentMethod } = getExpenseValueForMonth(e, prevMonthStr);
     let isPaid = e.isPaid;
     if (e.type === 'fixed' || e.type === 'installment') {
-       const payment = expensePayments.find(p => p.expenseId === e.id && p.monthYear === prevMonthStr);
+       const payment = (expensePayments || []).find(p => p.expenseId === e.id && p.monthYear === prevMonthStr);
        isPaid = payment ? payment.isPaid : false;
     }
     return value > 0 && paymentMethod === 'cash' && !isPaid;

@@ -268,7 +268,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     const { value, paymentMethod } = getExpenseValueForMonth(e, viewMonth);
     let isPaid = e.isPaid;
     if (e.type === 'fixed' || e.type === 'installment') {
-      const payment = expensePayments.find(p => p.expenseId === e.id && p.monthYear === viewMonth);
+      const payment = (expensePayments || []).find(p => p.expenseId === e.id && p.monthYear === viewMonth);
       isPaid = payment ? payment.isPaid : false;
     }
     return { ...e, currentMonthValue: value, currentMonthPaymentMethod: paymentMethod, isPaid };

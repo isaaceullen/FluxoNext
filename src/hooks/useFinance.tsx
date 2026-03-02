@@ -574,7 +574,7 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const value = {
-    user, loading, isSaving, saveSuccess, expenses, incomes, expenseCategories, incomeCategories, cards, cardPayments,
+    user, loading, isSaving, saveSuccess, expenses, incomes, expenseCategories, incomeCategories, cards, cardPayments, expensePayments,
     lastUsedPaymentMethod, setLastUsedPaymentMethod, loadData,
     addExpense, addInstallmentExpense, updateExpense, deleteExpense, toggleExpensePaid, updateFixedExpenseValue,
     addIncome, updateIncome, deleteIncome, updateFixedIncomeValue,

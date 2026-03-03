@@ -15,7 +15,7 @@ interface FilterState {
   paymentMethod: string;
   minValue: string;
   maxValue: string;
-  type: 'all' | 'fixed' | 'variable';
+  type: 'all' | 'fixed' | 'variable' | 'installment';
 }
 
 const initialFilters: FilterState = {
@@ -290,7 +290,8 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     if (activeFilters.maxValue && e.currentMonthValue > parseFloat(activeFilters.maxValue)) return false;
     
     if (activeFilters.type === 'fixed' && e.type !== 'fixed') return false;
-    if (activeFilters.type === 'variable' && e.type === 'fixed') return false;
+    if (activeFilters.type === 'variable' && (e.type === 'fixed' || e.isInstallment)) return false;
+    if (activeFilters.type === 'installment' && !e.isInstallment) return false;
 
     return true;
   }).sort((a, b) => {
@@ -719,6 +720,7 @@ const FilterModal = ({
               <option value="all">Todas</option>
               <option value="fixed">Apenas Fixas</option>
               <option value="variable">Apenas Variáveis / Avulsas</option>
+              <option value="installment">Apenas Parceladas</option>
             </Select>
 
             <Select

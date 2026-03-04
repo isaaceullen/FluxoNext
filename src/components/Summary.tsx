@@ -38,7 +38,9 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
     const cardExpenses = monthlyExpenses.filter(e => e.currentMonthPaymentMethod === card.id);
     const total = cardExpenses.reduce((acc, e) => acc + e.currentMonthValue, 0);
     const isPaid = cardPayments.find(p => p.cardId === card.id && p.monthYear === selectedMonth)?.isPaid || false;
-    return { ...card, total, isPaid };
+    const count = cardExpenses.length;
+    const installmentCount = cardExpenses.filter(e => e.isInstallment).length;
+    return { ...card, total, isPaid, count, installmentCount };
   }).filter(c => c.total > 0);
 
   const cashExpenses = monthlyExpenses.filter(e => e.currentMonthPaymentMethod === 'cash');
@@ -216,6 +218,9 @@ export const Summary = ({ onEditExpense }: { onEditExpense?: (id: string) => voi
                       {card.isPaid && <CheckCircle className="w-4 h-4 text-emerald-500" />}
                     </div>
                     <p className="text-xs text-zinc-500">Vence dia {card.dueDay}</p>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">
+                      {card.count} itens ({card.installmentCount} parcelados)
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-zinc-100">{formatCurrency(card.total)}</p>

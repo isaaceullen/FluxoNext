@@ -12,7 +12,7 @@ export const parseTransactionText = async (
   today: string = new Date().toISOString()
 ): Promise<ExtractedData> => {
   try {
-    const model = "gemini-3-flash-preview";
+    const model = "gemini-3.1-flash-lite-preview";
     
     const prompt = `
       Você é o assistente financeiro do FluxoNext. Hoje é ${today}.

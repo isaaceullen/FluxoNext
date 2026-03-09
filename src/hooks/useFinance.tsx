@@ -27,6 +27,7 @@ interface FinanceContextType {
   deleteExpense: (id: string) => Promise<void>;
   toggleExpensePaid: (id: string, monthYear?: string) => Promise<void>;
   updateFixedExpenseValue: (id: string, monthYear: string, newValue: number, newPaymentMethod?: string) => Promise<void>;
+  togglePauseFixedExpense: (id: string, monthYear: string) => Promise<void>;
   addIncome: (income: Omit<Income, 'id'>) => Promise<void>;
   updateIncome: (id: string, updates: Partial<Income>) => Promise<void>;
   deleteIncome: (id: string) => Promise<void>;
@@ -375,6 +376,26 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
     await updateExpense(id, { valueHistory: unique });
   };
 
+  const togglePauseFixedExpense = async (id: string, monthYear: string) => {
+    const expense = expenses.find(e => e.id === id);
+    if (!expense || expense.type !== 'fixed') return;
+
+    const currentValObj = getExpenseValueForMonth(expense, monthYear);
+    const currentValue = currentValObj.value;
+
+    if (currentValue > 0) {
+      // Pause it
+      await updateFixedExpenseValue(id, monthYear, 0, currentValObj.paymentMethod);
+    } else {
+      // Resume it
+      const history = expense.valueHistory || [];
+      const lastValid = history.filter(h => h.value > 0).sort((a, b) => b.monthYear.localeCompare(a.monthYear))[0];
+      const resumeValue = lastValid ? lastValid.value : expense.totalValue;
+      const resumeMethod = lastValid ? lastValid.paymentMethod : expense.paymentMethod;
+      await updateFixedExpenseValue(id, monthYear, resumeValue, resumeMethod);
+    }
+  };
+
   const addIncome = async (income: Omit<Income, 'id'>) => {
     if (!user) return;
     setIsSaving(true);
@@ -576,7 +597,7 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
   const value = {
     user, loading, isSaving, saveSuccess, expenses, incomes, expenseCategories, incomeCategories, cards, cardPayments, expensePayments,
     lastUsedPaymentMethod, setLastUsedPaymentMethod, loadData,
-    addExpense, addInstallmentExpense, updateExpense, deleteExpense, toggleExpensePaid, updateFixedExpenseValue,
+    addExpense, addInstallmentExpense, updateExpense, deleteExpense, toggleExpensePaid, updateFixedExpenseValue, togglePauseFixedExpense,
     addIncome, updateIncome, deleteIncome, updateFixedIncomeValue,
     addCard, updateCard, deleteCard, toggleCardPaid,
     addCategory, updateCategory, deleteCategory,

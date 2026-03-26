@@ -19,6 +19,7 @@ export interface ValueHistoryItem {
   monthYear: string; // YYYY-MM
   value: number;
   paymentMethod?: string; // 'cash' or cardId
+  type?: 'exception' | 'permanent';
 }
 
 export interface Income {

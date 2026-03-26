@@ -41,7 +41,8 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
     setLastUsedPaymentMethod,
     getExpenseValueForMonth,
     expensePayments,
-    togglePauseFixedExpense
+    togglePauseFixedExpense,
+    deleteFixedExpenseHistoryItem
   } = useFinance();
   const [activeTab, setActiveTab] = useState<'manual' | 'fixed' | 'chat'>('manual');
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -49,7 +50,8 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterState>(initialFilters);
-  const [historyModalData, setHistoryModalData] = useState<{ title: string; history: any[] } | null>(null);
+  const [historyModalData, setHistoryModalData] = useState<{ expenseId: string; title: string; history: any[] } | null>(null);
+  const [fixedEditData, setFixedEditData] = useState<{ id: string, effectiveMonth: string, totalValue: number, paymentMethod: string, title: string, categoryId: string } | null>(null);
 
   // Default tab logic based on login
   React.useEffect(() => {
@@ -208,8 +210,15 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
       };
 
       if (activeTab === 'fixed') {
-        await updateFixedExpenseValue(formData.id, formData.effectiveMonth, totalVal, formData.paymentMethod);
-        await updateExpense(formData.id, { title: formData.title, categoryId: formData.categoryId });
+        setFixedEditData({
+          id: formData.id,
+          effectiveMonth: formData.effectiveMonth,
+          totalValue: totalVal,
+          paymentMethod: formData.paymentMethod,
+          title: formData.title,
+          categoryId: formData.categoryId
+        });
+        return; // Wait for modal confirmation
       } else if (exp?.originalId) {
         // It's an installment, show modal
         setInstallmentEditData({ expense: exp, updates });
@@ -255,6 +264,30 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
       title: '',
       categoryId: '',
       paymentMethod: formData.paymentMethod, // Keep the last used one
+      isInstallment: false,
+      totalInstallments: 2,
+      totalValue: '',
+      installmentValue: '',
+      effectiveMonth: format(new Date(), 'yyyy-MM'),
+    });
+  };
+
+  const handleConfirmFixedEdit = async (isException: boolean) => {
+    if (!fixedEditData) return;
+    await updateFixedExpenseValue(fixedEditData.id, fixedEditData.effectiveMonth, fixedEditData.totalValue, fixedEditData.paymentMethod, isException);
+    await updateExpense(fixedEditData.id, { title: fixedEditData.title, categoryId: fixedEditData.categoryId });
+    
+    setLastUsedPaymentMethod(fixedEditData.paymentMethod);
+    setFixedEditData(null);
+    if (onClearEditing) onClearEditing();
+    
+    setFormData({
+      id: '',
+      purchaseDate: new Date().toISOString().slice(0, 10),
+      billingMonth: format(addMonths(new Date(), 1), 'yyyy-MM'),
+      title: '',
+      categoryId: '',
+      paymentMethod: fixedEditData.paymentMethod,
       isInstallment: false,
       totalInstallments: 2,
       totalValue: '',
@@ -589,7 +622,7 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
           cards={cards} 
           onEdit={handleEditExpense} 
           onDelete={deleteExpense} 
-          onShowHistory={(title, history) => setHistoryModalData({ title, history })}
+          onShowHistory={(expenseId, title, history) => setHistoryModalData({ expenseId, title, history })}
           onTogglePause={togglePauseFixedExpense}
           viewMonth={viewMonth}
         />
@@ -610,7 +643,59 @@ export const Expenses = ({ editingExpenseId, onClearEditing }: { editingExpenseI
         onClose={() => setHistoryModalData(null)}
         title={historyModalData?.title || ''}
         history={historyModalData?.history || []}
+        onDelete={async (monthYear, type) => {
+          if (historyModalData) {
+            await deleteFixedExpenseHistoryItem(historyModalData.expenseId, monthYear, type);
+            // Update modal data to reflect deletion immediately
+            setHistoryModalData(prev => prev ? {
+              ...prev,
+              history: prev.history.filter(h => !(h.monthYear === monthYear && h.type === type))
+            } : null);
+          }
+        }}
       />
+
+      {/* Fixed Edit Modal */}
+      <AnimatePresence>
+        {fixedEditData && (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md"
+            >
+              <Card className="relative border-zinc-800 shadow-2xl bg-zinc-950 p-6">
+                <h3 className="text-xl font-bold text-zinc-100 mb-4">Atualizar Despesa Fixa</h3>
+                <p className="text-zinc-400 mb-6">
+                  Como você deseja aplicar esta alteração?
+                </p>
+                <div className="flex flex-col gap-3">
+                  <Button 
+                    onClick={() => handleConfirmFixedEdit(true)}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-white justify-start"
+                  >
+                    Aplicar APENAS neste mês
+                  </Button>
+                  <Button 
+                    onClick={() => handleConfirmFixedEdit(false)}
+                    className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold justify-start"
+                  >
+                    Aplicar deste mês em diante
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => setFixedEditData(null)}
+                    className="mt-2"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </Card>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Installment Edit Modal */}
       <AnimatePresence>
@@ -815,7 +900,7 @@ const ExpenseList = ({
   cards: any[], 
   onEdit: (exp: any) => void, 
   onDelete: (id: string) => void,
-  onShowHistory: (title: string, history: any[]) => void,
+  onShowHistory: (expenseId: string, title: string, history: any[]) => void,
   onTogglePause: (id: string, monthYear: string) => void,
   viewMonth: string
 }) => {
@@ -872,7 +957,7 @@ const ExpenseList = ({
                       {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
                     </button>
                     <button 
-                      onClick={() => onShowHistory(exp.title, exp.valueHistory || [])}
+                      onClick={() => onShowHistory(exp.id, exp.title, exp.valueHistory || [])}
                       className="p-2 text-zinc-600 hover:text-emerald-500 hover:bg-zinc-800 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center"
                       title="Histórico"
                     >
@@ -1179,12 +1264,14 @@ const HistoryModal = ({
   isOpen, 
   onClose, 
   title, 
-  history 
+  history,
+  onDelete
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
   title: string; 
-  history: any[] 
+  history: any[];
+  onDelete?: (monthYear: string, type?: 'exception' | 'permanent') => void;
 }) => {
   if (!isOpen) return null;
 
@@ -1210,16 +1297,28 @@ const HistoryModal = ({
               history.map((h, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800">
                   <div className="flex flex-col">
-                    <span className="text-xs text-zinc-500 capitalize">
+                    <span className="text-xs text-zinc-500 capitalize flex items-center gap-2">
                       {format(parseISO(h.monthYear + '-01'), 'MM/yyyy', { locale: ptBR })}
+                      {h.type === 'exception' && <span className="bg-yellow-500/20 text-yellow-500 px-1.5 py-0.5 rounded text-[10px]">Exceção</span>}
                     </span>
                     <span className="text-sm font-medium text-zinc-200">
                       {h.paymentMethod === 'cash' ? 'Dinheiro' : 'Cartão'}
                     </span>
                   </div>
-                  <span className="font-bold text-yellow-500">
-                    {formatCurrency(h.value)}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-yellow-500">
+                      {formatCurrency(h.value)}
+                    </span>
+                    {onDelete && (
+                      <button 
+                        onClick={() => onDelete(h.monthYear, h.type)}
+                        className="p-1.5 text-zinc-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                        title="Excluir registro"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))
             )}

@@ -26,7 +26,8 @@ interface FinanceContextType {
   updateExpense: (id: string, updates: Partial<Expense>) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   toggleExpensePaid: (id: string, monthYear?: string) => Promise<void>;
-  updateFixedExpenseValue: (id: string, monthYear: string, newValue: number, newPaymentMethod?: string) => Promise<void>;
+  updateFixedExpenseValue: (id: string, monthYear: string, newValue: number, newPaymentMethod?: string, isException?: boolean) => Promise<void>;
+  deleteFixedExpenseHistoryItem: (id: string, monthYear: string, type?: 'exception' | 'permanent') => Promise<void>;
   togglePauseFixedExpense: (id: string, monthYear: string) => Promise<void>;
   addIncome: (income: Omit<Income, 'id'>) => Promise<void>;
   updateIncome: (id: string, updates: Partial<Income>) => Promise<void>;
@@ -363,17 +364,29 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateFixedExpenseValue = async (id: string, monthYear: string, newValue: number, newPaymentMethod?: string) => {
+  const updateFixedExpenseValue = async (id: string, monthYear: string, newValue: number, newPaymentMethod?: string, isException?: boolean) => {
     const expense = expenses.find(e => e.id === id);
     if (!expense || expense.type !== 'fixed') return;
-    const newHistory = [...(expense.valueHistory || []), { monthYear, value: newValue, paymentMethod: newPaymentMethod || expense.paymentMethod }]
+    const newHistory = [...(expense.valueHistory || []), { monthYear, value: newValue, paymentMethod: newPaymentMethod || expense.paymentMethod, type: isException ? 'exception' : 'permanent' as const }]
       .sort((a, b) => a.monthYear.localeCompare(b.monthYear));
     const unique = newHistory.reduce((acc: any[], curr) => {
-      const idx = acc.findIndex(h => h.monthYear === curr.monthYear);
+      const currType = curr.type || 'permanent';
+      const idx = acc.findIndex(h => h.monthYear === curr.monthYear && (h.type || 'permanent') === currType);
       if (idx >= 0) acc[idx] = curr; else acc.push(curr);
       return acc;
     }, []);
     await updateExpense(id, { valueHistory: unique });
+  };
+
+  const deleteFixedExpenseHistoryItem = async (id: string, monthYear: string, type?: 'exception' | 'permanent') => {
+    const expense = expenses.find(e => e.id === id);
+    if (!expense || expense.type !== 'fixed') return;
+    const newHistory = (expense.valueHistory || []).filter(h => {
+      const hType = h.type || 'permanent';
+      const targetType = type || 'permanent';
+      return !(h.monthYear === monthYear && hType === targetType);
+    });
+    await updateExpense(id, { valueHistory: newHistory });
   };
 
   const togglePauseFixedExpense = async (id: string, monthYear: string) => {
@@ -588,8 +601,15 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
     if (expense.type === 'fixed') {
       const history = expense.valueHistory || [];
       if (history.length === 0) return { value: 0, paymentMethod: expense.paymentMethod };
-      const applicable = history.filter(h => h.monthYear <= monthYear).sort((a, b) => b.monthYear.localeCompare(a.monthYear))[0];
-      return applicable ? { value: applicable.value, paymentMethod: applicable.paymentMethod || expense.paymentMethod } : { value: history[0].value, paymentMethod: history[0].paymentMethod || expense.paymentMethod };
+      
+      const exception = history.find(h => h.monthYear === monthYear && h.type === 'exception');
+      if (exception) return { value: exception.value, paymentMethod: exception.paymentMethod || expense.paymentMethod };
+
+      const permanents = history.filter(h => h.type !== 'exception');
+      if (permanents.length === 0) return { value: history[0].value, paymentMethod: history[0].paymentMethod || expense.paymentMethod };
+
+      const applicable = permanents.filter(h => h.monthYear <= monthYear).sort((a, b) => b.monthYear.localeCompare(a.monthYear))[0];
+      return applicable ? { value: applicable.value, paymentMethod: applicable.paymentMethod || expense.paymentMethod } : { value: permanents[0].value, paymentMethod: permanents[0].paymentMethod || expense.paymentMethod };
     }
     return expense.billingMonth === monthYear ? { value: expense.installmentValue, paymentMethod: expense.paymentMethod } : { value: 0, paymentMethod: expense.paymentMethod };
   };
@@ -597,7 +617,7 @@ export const FinanceProvider = ({ children }: { children: ReactNode }) => {
   const value = {
     user, loading, isSaving, saveSuccess, expenses, incomes, expenseCategories, incomeCategories, cards, cardPayments, expensePayments,
     lastUsedPaymentMethod, setLastUsedPaymentMethod, loadData,
-    addExpense, addInstallmentExpense, updateExpense, deleteExpense, toggleExpensePaid, updateFixedExpenseValue, togglePauseFixedExpense,
+    addExpense, addInstallmentExpense, updateExpense, deleteExpense, toggleExpensePaid, updateFixedExpenseValue, deleteFixedExpenseHistoryItem, togglePauseFixedExpense,
     addIncome, updateIncome, deleteIncome, updateFixedIncomeValue,
     addCard, updateCard, deleteCard, toggleCardPaid,
     addCategory, updateCategory, deleteCategory,

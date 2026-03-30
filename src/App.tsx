@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { LayoutDashboard, PlusCircle, Home, Menu, CreditCard, Tag, DollarSign, Wallet, Download, Upload, Trash2, AlertTriangle, X, ChevronUp } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Home, Menu, CreditCard, Tag, DollarSign, Wallet, Download, Upload, Trash2, AlertTriangle, X, ChevronUp, Bot } from 'lucide-react';
 import { Summary } from './components/Summary';
 import { Expenses } from './components/Expenses';
 import { Income } from './components/Income';
@@ -9,6 +9,7 @@ import { Categories } from './components/Categories';
 import { useFinance } from './hooks/useFinance';
 import { UserMenu } from './components/UserMenu';
 import { LoginModal } from './components/LoginModal';
+import { FinancialAIChat } from './components/FinancialAIChat';
 import { cn } from './utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2 } from 'lucide-react';
@@ -21,6 +22,7 @@ function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showAIChat, setShowAIChat] = useState(false);
   const [showToast, setShowToast] = useState(false);
 
   // Hash Routing Logic
@@ -96,6 +98,13 @@ function App() {
               {item.label}
             </button>
           ))}
+          <button
+            onClick={() => setShowAIChat(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-yellow-500 hover:bg-yellow-500/10 border border-yellow-500/20"
+          >
+            <Bot className="w-5 h-5" />
+            Assistente IA
+          </button>
         </nav>
 
         <div className="p-4 border-t border-zinc-800">
@@ -145,6 +154,16 @@ function App() {
                   {item.label}
                 </button>
               ))}
+              <button
+                onClick={() => {
+                  setShowAIChat(true);
+                  setIsMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-4 rounded-xl text-lg font-medium transition-all text-yellow-500 bg-yellow-500/10 border border-yellow-500/20"
+              >
+                <Bot className="w-6 h-6" />
+                Assistente IA
+              </button>
             </nav>
 
             <div className="pb-8 pt-4 border-t border-zinc-800">
@@ -191,6 +210,7 @@ function App() {
       </motion.button>
 
       {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
+      <FinancialAIChat isOpen={showAIChat} onClose={() => setShowAIChat(false)} />
 
       {/* Toast Notification */}
       <AnimatePresence>

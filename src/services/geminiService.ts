@@ -65,3 +65,40 @@ export const parseTransactionText = async (
     };
   }
 };
+
+export const askFinancialAssistant = async (
+  message: string,
+  history: { role: 'user' | 'model'; parts: { text: string }[] }[],
+  financialData: {
+    incomes: any[];
+    expenses: any[];
+    cards: any[];
+  }
+): Promise<string> => {
+  try {
+    const model = "gemini-3.1-flash-lite-preview";
+    
+    // Minify financial data to save tokens
+    const minifiedData = JSON.stringify({
+      i: financialData.incomes.map(i => ({ n: i.name, v: i.value, m: i.monthYear })),
+      e: financialData.expenses.map(e => ({ n: e.name, v: e.value, t: e.type, m: e.paymentMethod, d: e.purchaseDate || e.monthYear })),
+      c: financialData.cards.map(c => ({ n: c.name, d: c.dueDay }))
+    });
+
+    const systemInstruction = `Você é um consultor financeiro analítico integrado a um app de controle de gastos. Você tem acesso ao histórico financeiro atual do usuário. Responda às perguntas financeiras dele baseando-se ESTRITAMENTE nesses dados. Seja extremamente conciso, objetivo e vá direto ao ponto para economizar tokens. Só forneça respostas longas se o usuário pedir uma explicação detalhada ou um planejamento complexo. Não invente dados. Dados do usuário: ${minifiedData}`;
+
+    const chat = ai.chats.create({
+      model: model,
+      config: {
+        systemInstruction,
+      },
+      history: history
+    });
+
+    const response = await chat.sendMessage({ message });
+    return response.text || "Desculpe, não consegui processar sua solicitação.";
+  } catch (error) {
+    console.error("AI Assistant Error:", error);
+    return "Ocorreu um erro ao consultar o assistente. Tente novamente mais tarde.";
+  }
+};

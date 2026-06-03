@@ -3,10 +3,18 @@ import { useFinance } from '../hooks/useFinance';
 import { Card } from './ui';
 import { formatCurrency, cn } from '../utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { format, addMonths, subMonths, parseISO, eachMonthOfInterval } from 'date-fns';
+import { format, addMonths, subMonths, parseISO, eachMonthOfInterval, getMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowLeft, ArrowRight, ChevronDown } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, CreditCard as CardIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+const StatCard = ({ title, value, sub }: { title: string, value: string, sub?: string }) => (
+  <Card className="p-4 bg-zinc-900 border-zinc-800">
+    <h4 className="text-zinc-500 text-sm font-medium">{title}</h4>
+    <div className="text-2xl font-bold text-zinc-100 mt-1">{value}</div>
+    {sub && <div className="text-zinc-500 text-xs mt-1">{sub}</div>}
+  </Card>
+);
 
 export const Dashboard = () => {
   const { expenses, incomes, expenseCategories, cards, getIncomeValueForMonth, getExpenseValueForMonth } = useFinance();
@@ -23,19 +31,15 @@ export const Dashboard = () => {
   const handlePrevMonth = () => setSelectedMonth(prev => format(subMonths(parseISO(prev + '-01'), 1), 'yyyy-MM'));
   const handleNextMonth = () => setSelectedMonth(prev => format(addMonths(parseISO(prev + '-01'), 1), 'yyyy-MM'));
 
-  const categoryData = useMemo(() => {
-    const data: Record<string, number> = {};
-    expenses.forEach(e => {
-      const { value } = getExpenseValueForMonth(e, selectedMonth);
-      if (value > 0) {
-        const catName = expenseCategories.find(c => c.id === e.categoryId)?.name || 'Outros';
-        data[catName] = (data[catName] || 0) + value;
-      }
-    });
-    return Object.entries(data).map(([name, value]) => ({ name, value }));
-  }, [expenses, expenseCategories, selectedMonth, getExpenseValueForMonth]);
+  // Metrics
+  const installmentMetrics = useMemo(() => {
+    const active = expenses.filter(e => e.isInstallment && e.installments);
+    const paid = active.filter(e => e.isPaid).reduce((acc, e) => acc + (e.installmentValue || 0), 0);
+    const remaining = active.filter(e => !e.isPaid).reduce((acc, e) => acc + (e.installmentValue || 0), 0);
+    return { total: active.length, paid, remaining };
+  }, [expenses]);
 
-  const cardUsageData = useMemo(() => {
+  const { cardUsageData, preferredCard } = useMemo(() => {
     const data: Record<string, number> = {};
     expenses.forEach(e => {
       const { value, paymentMethod } = getExpenseValueForMonth(e, selectedMonth);
@@ -49,10 +53,39 @@ export const Dashboard = () => {
       }
     });
       
-    return Object.entries(data)
+    const sorted = Object.entries(data)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
+      
+    return { cardUsageData: sorted, preferredCard: sorted[0]?.name || 'N/A' };
   }, [expenses, cards, selectedMonth, getExpenseValueForMonth]);
+
+  const peakExpenseMonth = useMemo(() => {
+    const monthlyCounts = new Array(12).fill(0);
+    const currentYear = new Date().getFullYear();
+    expenses.forEach(e => {
+      if (e.createdAt) {
+        const date = new Date(e.createdAt);
+        if (date.getFullYear() === currentYear) {
+          monthlyCounts[date.getMonth()]++;
+        }
+      }
+    });
+    const maxIndex = monthlyCounts.indexOf(Math.max(...monthlyCounts));
+    return format(new Date(currentYear, maxIndex), 'MMMM', { locale: ptBR });
+  }, [expenses]);
+
+  const categoryData = useMemo(() => {
+    const data: Record<string, number> = {};
+    expenses.forEach(e => {
+      const { value } = getExpenseValueForMonth(e, selectedMonth);
+      if (value > 0) {
+        const catName = expenseCategories.find(c => c.id === e.categoryId)?.name || 'Outros';
+        data[catName] = (data[catName] || 0) + value;
+      }
+    });
+    return Object.entries(data).map(([name, value]) => ({ name, value }));
+  }, [expenses, expenseCategories, selectedMonth, getExpenseValueForMonth]);
 
   // Cash Flow (Last 3 months + Next 3 months)
   const monthlyData = useMemo(() => {
@@ -135,6 +168,13 @@ export const Dashboard = () => {
             <ArrowRight className="w-5 h-5" />
           </button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard title="Parcelas Ativas" value={installmentMetrics.total.toString()} sub={`${formatCurrency(installmentMetrics.remaining)} restantes`} />
+        <StatCard title="Gasto Mês Atual" value={formatCurrency(monthlyData.find(m => m.name === format(parseISO(selectedMonth + '-01'), 'MMM/yyyy', { locale: ptBR }))?.expense || 0)} />
+        <StatCard title="Cartão Preferido" value={preferredCard} />
+        <StatCard title="Mês de Pico" value={peakExpenseMonth} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

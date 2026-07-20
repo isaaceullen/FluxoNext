@@ -21,7 +21,7 @@ async function startServer() {
       const parsedCards = cards ? JSON.parse(cards) : [];
       
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const model = "gemini-3.1-pro-preview";
+      const model = "gemini-3.1-flash-lite-preview";
 
       let prompt = `
         Você é um assistente financeiro especialista em leitura de recibos e extratos bancários brasileiros. Extraia com precisão cirúrgica o valor, o estabelecimento, a data e a forma de pagamento/cartão de prints de tela ou fotos de comprovantes. Retorne os dados estritamente em formato estruturado.

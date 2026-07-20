@@ -997,8 +997,8 @@ const ExpenseChat = ({
 }) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
-  const { cards, expenseCategories, addExpense, addInstallmentExpense, lastUsedPaymentMethod, setLastUsedPaymentMethod, deleteExpense } = useFinance();
+  const [pendingExpenses, setPendingExpenses] = useState<ExtractedData[]>([]);
+  const { cards, expenseCategories, addExpense, addInstallmentExpense, lastUsedPaymentMethod, setLastUsedPaymentMethod } = useFinance();
   const [messages, setMessages] = useState<{ role: 'user' | 'ai'; content: string }[]>([
     { role: 'ai', content: 'Olá! Sou seu tutor financeiro. Me diga quanto você gastou e com o quê.' }
   ]);
@@ -1012,7 +1012,6 @@ const ExpenseChat = ({
     const newMessages = [...messages, { role: 'user' as const, content: userText }];
     setMessages(newMessages);
     setIsLoading(true);
-    setExtractedData(null);
 
     try {
       const history = newMessages; 
@@ -1020,9 +1019,14 @@ const ExpenseChat = ({
       const cardNames = cards.map(c => c.name);
       
       const result = await parseTransactionText(userText, history, categories, cardNames);
-      setExtractedData(result);
       
-      setMessages(prev => [...prev, { role: 'ai', content: 'Analisei seu gasto. Confira os dados abaixo e confirme.' }]);
+      const expensesWithIds = result.expenses.map(exp => ({
+        ...exp,
+        tempId: crypto.randomUUID()
+      }));
+
+      setPendingExpenses(prev => [...prev, ...expensesWithIds]);
+      setMessages(prev => [...prev, { role: 'ai', content: result.message }]);
 
     } catch (error) {
       setMessages(prev => [...prev, { role: 'ai', content: 'Erro ao processar. Tente novamente.' }]);
@@ -1031,62 +1035,67 @@ const ExpenseChat = ({
     }
   };
 
-  const handleConfirm = async () => {
-    if (!extractedData) return;
+  const handleConfirmAll = async () => {
+    if (pendingExpenses.length === 0) return;
 
-    // Find IDs or use defaults
-    const categoryId = expenseCategories.find(c => c.name.toLowerCase() === extractedData.category?.toLowerCase())?.id || expenseCategories[0]?.id;
-    
-    // Map payment method
-    let paymentMethod = lastUsedPaymentMethod || 'cash';
-    if (extractedData.paymentMethod) {
-      const lowerPM = extractedData.paymentMethod.toLowerCase();
-      if (lowerPM === 'dinheiro' || lowerPM === 'cash') {
-        paymentMethod = 'cash';
-      } else {
-        const foundCard = cards.find(c => c.name.toLowerCase().includes(lowerPM));
-        if (foundCard) paymentMethod = foundCard.id;
+    for (const data of pendingExpenses) {
+      // Find IDs or use defaults
+      const categoryId = expenseCategories.find(c => c.name.toLowerCase() === data.category?.toLowerCase())?.id || expenseCategories[0]?.id;
+      
+      // Map payment method
+      let paymentMethod = lastUsedPaymentMethod || 'cash';
+      if (data.paymentMethod) {
+        const lowerPM = data.paymentMethod.toLowerCase();
+        if (lowerPM === 'dinheiro' || lowerPM === 'cash') {
+          paymentMethod = 'cash';
+        } else {
+          const foundCard = cards.find(c => c.name.toLowerCase().includes(lowerPM));
+          if (foundCard) paymentMethod = foundCard.id;
+        }
       }
+
+      const baseData = {
+        title: data.name || 'Sem título',
+        categoryId,
+        purchaseDate: data.purchaseDate || new Date().toISOString().slice(0, 10),
+        billingMonth: data.billingMonth || format(addMonths(new Date(), 1), 'yyyy-MM'),
+        isInstallment: data.isInstallment || (data.installments || 1) > 1,
+        totalValue: data.value || 0,
+        installmentValue: (data.value || 0) / (data.installments || 1),
+        paymentMethod,
+        isPaid: false,
+      };
+
+      if (baseData.isInstallment) {
+        await addInstallmentExpense(baseData, baseData.billingMonth, data.installments || 1);
+      } else {
+        await addExpense({ ...baseData, type: 'one_time' });
+      }
+
+      setLastUsedPaymentMethod(paymentMethod);
     }
 
-    const baseData = {
-      title: extractedData.name || 'Sem título',
-      categoryId,
-      purchaseDate: extractedData.purchaseDate || new Date().toISOString().slice(0, 10),
-      billingMonth: extractedData.billingMonth || format(addMonths(new Date(), 1), 'yyyy-MM'),
-      isInstallment: extractedData.isInstallment || (extractedData.installments || 1) > 1,
-      totalValue: extractedData.value || 0,
-      installmentValue: (extractedData.value || 0) / (extractedData.installments || 1),
-      paymentMethod,
-      isPaid: false,
-    };
-
-    if (baseData.isInstallment) {
-      await addInstallmentExpense(baseData, baseData.billingMonth, extractedData.installments || 1);
-    } else {
-      await addExpense({ ...baseData, type: 'one_time' });
-    }
-
-    setLastUsedPaymentMethod(paymentMethod);
-    setMessages(prev => [...prev, { role: 'ai', content: 'Lançamento salvo com sucesso!' }]);
-    setExtractedData(null);
-    // Focus input after confirm
+    setMessages(prev => [...prev, { role: 'ai', content: 'Todos os lançamentos foram salvos no Supabase com sucesso!' }]);
+    setPendingExpenses([]);
+    
     setTimeout(() => {
       const inputEl = document.querySelector('input[placeholder="Digite seu gasto..."]') as HTMLInputElement;
       if (inputEl) inputEl.focus();
     }, 100);
   };
 
-  // Helper to fill missing data
-  const updateData = (key: keyof ExtractedData, value: any) => {
-    if (extractedData) {
-      setExtractedData({ ...extractedData, [key]: value });
-    }
+  const updatePendingData = (id: string, key: keyof ExtractedData, value: any) => {
+    setPendingExpenses(prev => prev.map(exp => 
+      exp.tempId === id ? { ...exp, [key]: value } : exp
+    ));
+  };
+
+  const removePendingExpense = (id: string) => {
+    setPendingExpenses(prev => prev.filter(exp => exp.tempId !== id));
   };
 
   return (
     <div className="space-y-6 relative">
-      {/* Chat Area */}
       <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl flex flex-col relative">
         <div className="p-4 space-y-4 min-h-[200px] max-h-[60vh] overflow-y-auto">
           {messages.map((msg, idx) => (
@@ -1103,138 +1112,99 @@ const ExpenseChat = ({
           ))}
           {isLoading && <div className="text-zinc-500 text-sm animate-pulse">Digitando...</div>}
 
-          {/* Confirmation Card Inside Chat */}
-          {extractedData && (
+          {pendingExpenses.length > 0 && (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full"
+              className="w-full space-y-4"
             >
-              <Card className="border-yellow-500/50 p-4 bg-zinc-900/80 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-zinc-100">Confirmar Lançamento</h3>
-                  <Button size="sm" variant="ghost" onClick={() => setExtractedData(null)}><X className="w-4 h-4" /></Button>
-                </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input 
-                    label="Nome" 
-                    value={extractedData.name || ''} 
-                    onChange={e => updateData('name', e.target.value)} 
-                  />
-                  <Input 
-                    label="Valor" 
-                    type="number" 
-                    value={extractedData.value || ''} 
-                    onChange={e => updateData('value', parseFloat(e.target.value))} 
-                  />
+              {pendingExpenses.map((data, index) => (
+                <Card key={data.tempId} className="border-yellow-500/50 p-4 bg-zinc-900/80 space-y-4 relative">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-zinc-100">Gasto {index + 1}</h3>
+                    <Button size="icon" variant="ghost" onClick={() => removePendingExpense(data.tempId!)} className="text-zinc-500 hover:text-red-500">
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                   
-                  <div className="space-y-1">
-                    <Select
-                      label="Categoria"
-                      value={expenseCategories.find(c => c.name === extractedData.category)?.id || ''}
-                      onChange={e => {
-                        const cat = expenseCategories.find(c => c.id === e.target.value);
-                        updateData('category', cat?.name);
-                      }}
-                    >
-                      <option value="">Selecione...</option>
-                      {expenseCategories.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </Select>
-                    {!extractedData.category && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {expenseCategories.slice(0, 5).map(c => (
-                          <button 
-                            key={c.id}
-                            onClick={() => updateData('category', c.name)}
-                            className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
-                          >
-                            {c.name}
-                          </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input 
+                      label="Nome" 
+                      value={data.name || ''} 
+                      onChange={e => updatePendingData(data.tempId!, 'name', e.target.value)} 
+                    />
+                    <Input 
+                      label="Valor" 
+                      type="number" 
+                      value={data.value || ''} 
+                      onChange={e => updatePendingData(data.tempId!, 'value', parseFloat(e.target.value))} 
+                    />
+                    
+                    <div className="space-y-1">
+                      <Select
+                        label="Categoria"
+                        value={expenseCategories.find(c => c.name === data.category)?.id || ''}
+                        onChange={e => {
+                          const cat = expenseCategories.find(c => c.id === e.target.value);
+                          updatePendingData(data.tempId!, 'category', cat?.name);
+                        }}
+                      >
+                        <option value="">Selecione...</option>
+                        {expenseCategories.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
-                      </div>
-                    )}
-                  </div>
+                      </Select>
+                    </div>
 
-                  <div className="space-y-1">
-                    <Select
-                      label="Pagamento"
-                      value={extractedData.paymentMethod === 'Dinheiro' ? 'cash' : (cards.find(c => c.name === extractedData.paymentMethod)?.id || 'cash')}
-                      onChange={e => {
-                        const val = e.target.value;
-                        if (val === 'cash') updateData('paymentMethod', 'Dinheiro');
-                        else {
-                          const card = cards.find(c => c.id === val);
-                          updateData('paymentMethod', card?.name);
-                        }
-                      }}
-                    >
-                      <option value="cash">Dinheiro</option>
-                      {cards.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </Select>
-                    {(!extractedData.paymentMethod || extractedData.paymentMethod === 'Dinheiro') && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <button 
-                          onClick={() => updateData('paymentMethod', 'Dinheiro')}
-                          className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
-                        >
-                          Dinheiro
-                        </button>
+                    <div className="space-y-1">
+                      <Select
+                        label="Pagamento"
+                        value={data.paymentMethod === 'Dinheiro' ? 'cash' : (cards.find(c => c.name === data.paymentMethod)?.id || 'cash')}
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val === 'cash') updatePendingData(data.tempId!, 'paymentMethod', 'Dinheiro');
+                          else {
+                            const card = cards.find(c => c.id === val);
+                            updatePendingData(data.tempId!, 'paymentMethod', card?.name);
+                          }
+                        }}
+                      >
+                        <option value="cash">Dinheiro</option>
                         {cards.map(c => (
-                          <button 
-                            key={c.id}
-                            onClick={() => updateData('paymentMethod', c.name)}
-                            className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
-                          >
-                            {c.name}
-                          </button>
+                          <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
-                      </div>
-                    )}
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Input 
+                        label="Data Compra" 
+                        type="date"
+                        value={data.purchaseDate || ''} 
+                        onChange={e => updatePendingData(data.tempId!, 'purchaseDate', e.target.value)} 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Input 
+                        label="Mês Fatura" 
+                        type="month"
+                        value={data.billingMonth || ''} 
+                        onChange={e => updatePendingData(data.tempId!, 'billingMonth', e.target.value)} 
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <Input 
-                      label="Data Compra" 
-                      type="date"
-                      value={extractedData.purchaseDate || ''} 
-                      onChange={e => updateData('purchaseDate', e.target.value)} 
-                    />
-                    {extractedData.purchaseDate && (
-                      <p className="text-[10px] text-zinc-500 pl-1">
-                        {format(parseISO(extractedData.purchaseDate), 'dd/MM/yyyy')}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <Input 
-                      label="Mês Fatura" 
-                      type="month"
-                      value={extractedData.billingMonth || ''} 
-                      onChange={e => updateData('billingMonth', e.target.value)} 
-                    />
-                    {extractedData.billingMonth && (
-                      <p className="text-[10px] text-zinc-500 pl-1 capitalize">
-                        {format(parseISO(extractedData.billingMonth + '-01'), 'MMM/yyyy', { locale: ptBR })}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                  {data.isInstallment && (data.installments || 1) > 1 && (
+                    <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 text-yellow-500 text-sm text-center font-medium">
+                      Será salvo como: {data.installments}x de {formatCurrency((data.value || 0) / (data.installments || 1))}
+                    </div>
+                  )}
+                </Card>
+              ))}
 
-                {extractedData.isInstallment && (extractedData.installments || 1) > 1 && (
-                  <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 text-yellow-500 text-sm text-center font-medium">
-                    Será salvo como: {extractedData.installments}x de {formatCurrency((extractedData.value || 0) / (extractedData.installments || 1))}
-                  </div>
-                )}
-
-                <Button className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold" onClick={handleConfirm}>
-                  <Check className="w-4 h-4 mr-2" /> Confirmar Lançamento
-                </Button>
-              </Card>
+              <Button className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold mt-4" onClick={handleConfirmAll}>
+                <Check className="w-4 h-4 mr-2" /> Confirmar e Cadastrar Todos ({pendingExpenses.length})
+              </Button>
             </motion.div>
           )}
           

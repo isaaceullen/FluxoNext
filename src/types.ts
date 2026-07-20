@@ -73,6 +73,7 @@ export interface ExpensePayment {
 }
 
 export interface ExtractedData {
+  tempId?: string;
   name?: string;
   value?: number;
   category?: string;
@@ -84,4 +85,9 @@ export interface ExtractedData {
   billingMonth?: string;
   confidence?: number;
   missingFields?: string[];
+}
+
+export interface ParseChatResponse {
+  message: string;
+  expenses: ExtractedData[];
 }

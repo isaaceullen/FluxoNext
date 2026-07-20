@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useFinance } from '../hooks/useFinance';
 import { Card, Button, Input, Select } from './ui';
-import { Plus, Trash2, Calendar, CreditCard as CardIcon, DollarSign, MessageSquare, List, Send, Check, Edit2, ArrowLeft, ArrowRight, ChevronDown, X, Search, Filter, Clock, Pause, Play } from 'lucide-react';
+import { Plus, Trash2, Calendar, CreditCard as CardIcon, DollarSign, MessageSquare, List, Send, Check, Edit2, ArrowLeft, ArrowRight, ChevronDown, X, Search, Filter, Clock, Pause, Play, Image as ImageIcon } from 'lucide-react';
 import { formatCurrency, cn } from '../utils';
 import { format, parseISO, addMonths, subMonths, eachMonthOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -997,32 +997,57 @@ const ExpenseChat = ({
 }) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
+  const [extractedDataList, setExtractedDataList] = useState<ExtractedData[] | null>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const { cards, expenseCategories, addExpense, addInstallmentExpense, lastUsedPaymentMethod, setLastUsedPaymentMethod, deleteExpense } = useFinance();
-  const [messages, setMessages] = useState<{ role: 'user' | 'ai'; content: string }[]>([
-    { role: 'ai', content: 'Olá! Sou seu tutor financeiro. Me diga quanto você gastou e com o quê.' }
+  const [messages, setMessages] = useState<{ role: 'user' | 'ai'; content: string; image?: string }[]>([
+    { role: 'ai', content: 'Olá! Sou seu tutor financeiro. Me diga quanto você gastou ou envie um comprovante/recibo.' }
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onload = (e) => setImagePreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() && !selectedImage) return;
 
     const userText = input;
     setInput('');
-    const newMessages = [...messages, { role: 'user' as const, content: userText }];
+    const currentImage = selectedImage;
+    const currentPreview = imagePreview;
+    
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    const newMessages = [...messages, { role: 'user' as const, content: userText, image: currentPreview || undefined }];
     setMessages(newMessages);
     setIsLoading(true);
-    setExtractedData(null);
+    setExtractedDataList(null);
 
     try {
-      const history = newMessages; 
+      const history = newMessages.map(m => ({ role: m.role, content: m.content })); 
       const categories = expenseCategories.map(c => c.name);
       const cardNames = cards.map(c => c.name);
       
-      const result = await parseTransactionText(userText, history, categories, cardNames);
-      setExtractedData(result);
+      const result = await parseTransactionText(userText, history, categories, cardNames, new Date().toISOString(), currentImage);
       
-      setMessages(prev => [...prev, { role: 'ai', content: 'Analisei seu gasto. Confira os dados abaixo e confirme.' }]);
+      if (result.length > 0 && !result[0].missingFields?.includes("error")) {
+        setExtractedDataList(result);
+        setMessages(prev => [...prev, { role: 'ai', content: `Analisei seus gastos (${result.length} item(ns)). Confira os dados abaixo e confirme.` }]);
+      } else {
+        setMessages(prev => [...prev, { role: 'ai', content: 'Não consegui extrair os dados. Pode tentar enviar de outra forma?' }]);
+      }
 
     } catch (error) {
       setMessages(prev => [...prev, { role: 'ai', content: 'Erro ao processar. Tente novamente.' }]);
@@ -1031,16 +1056,17 @@ const ExpenseChat = ({
     }
   };
 
-  const handleConfirm = async () => {
-    if (!extractedData) return;
+  const handleConfirmItem = async (index: number) => {
+    if (!extractedDataList) return;
+    const item = extractedDataList[index];
 
     // Find IDs or use defaults
-    const categoryId = expenseCategories.find(c => c.name.toLowerCase() === extractedData.category?.toLowerCase())?.id || expenseCategories[0]?.id;
+    const categoryId = expenseCategories.find(c => c.name.toLowerCase() === item.category?.toLowerCase())?.id || expenseCategories[0]?.id;
     
     // Map payment method
     let paymentMethod = lastUsedPaymentMethod || 'cash';
-    if (extractedData.paymentMethod) {
-      const lowerPM = extractedData.paymentMethod.toLowerCase();
+    if (item.paymentMethod) {
+      const lowerPM = item.paymentMethod.toLowerCase();
       if (lowerPM === 'dinheiro' || lowerPM === 'cash') {
         paymentMethod = 'cash';
       } else {
@@ -1050,37 +1076,58 @@ const ExpenseChat = ({
     }
 
     const baseData = {
-      title: extractedData.name || 'Sem título',
+      title: item.name || 'Sem título',
       categoryId,
-      purchaseDate: extractedData.purchaseDate || new Date().toISOString().slice(0, 10),
-      billingMonth: extractedData.billingMonth || format(addMonths(new Date(), 1), 'yyyy-MM'),
-      isInstallment: extractedData.isInstallment || (extractedData.installments || 1) > 1,
-      totalValue: extractedData.value || 0,
-      installmentValue: (extractedData.value || 0) / (extractedData.installments || 1),
+      purchaseDate: item.purchaseDate || new Date().toISOString().slice(0, 10),
+      billingMonth: item.billingMonth || format(addMonths(new Date(), 1), 'yyyy-MM'),
+      isInstallment: item.isInstallment || (item.installments || 1) > 1,
+      totalValue: item.value || 0,
+      installmentValue: (item.value || 0) / (item.installments || 1),
       paymentMethod,
       isPaid: false,
     };
 
     if (baseData.isInstallment) {
-      await addInstallmentExpense(baseData, baseData.billingMonth, extractedData.installments || 1);
+      await addInstallmentExpense(baseData, baseData.billingMonth, item.installments || 1);
     } else {
       await addExpense({ ...baseData, type: 'one_time' });
     }
 
     setLastUsedPaymentMethod(paymentMethod);
-    setMessages(prev => [...prev, { role: 'ai', content: 'Lançamento salvo com sucesso!' }]);
-    setExtractedData(null);
-    // Focus input after confirm
-    setTimeout(() => {
-      const inputEl = document.querySelector('input[placeholder="Digite seu gasto..."]') as HTMLInputElement;
-      if (inputEl) inputEl.focus();
-    }, 100);
+    
+    const newList = [...extractedDataList];
+    newList.splice(index, 1);
+    
+    if (newList.length === 0) {
+      setExtractedDataList(null);
+      setMessages(prev => [...prev, { role: 'ai', content: 'Todos os lançamentos foram salvos com sucesso!' }]);
+      setTimeout(() => {
+        const inputEl = document.querySelector('input[placeholder="Digite seu gasto..."]') as HTMLInputElement;
+        if (inputEl) inputEl.focus();
+      }, 100);
+    } else {
+      setExtractedDataList(newList);
+    }
+  };
+
+  const handleRemoveItem = (index: number) => {
+    if (!extractedDataList) return;
+    const newList = [...extractedDataList];
+    newList.splice(index, 1);
+    if (newList.length === 0) {
+      setExtractedDataList(null);
+      setMessages(prev => [...prev, { role: 'ai', content: 'Lançamentos descartados.' }]);
+    } else {
+      setExtractedDataList(newList);
+    }
   };
 
   // Helper to fill missing data
-  const updateData = (key: keyof ExtractedData, value: any) => {
-    if (extractedData) {
-      setExtractedData({ ...extractedData, [key]: value });
+  const updateData = (index: number, key: keyof ExtractedData, value: any) => {
+    if (extractedDataList) {
+      const newList = [...extractedDataList];
+      newList[index] = { ...newList[index], [key]: value };
+      setExtractedDataList(newList);
     }
   };
 
@@ -1088,7 +1135,7 @@ const ExpenseChat = ({
     <div className="space-y-6 relative">
       {/* Chat Area */}
       <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl flex flex-col relative">
-        <div className="p-4 space-y-4 min-h-[200px] max-h-[60vh] overflow-y-auto">
+        <div className="p-4 space-y-4 min-h-[300px] max-h-[60vh] overflow-y-auto custom-scrollbar">
           {messages.map((msg, idx) => (
             <div key={idx} className={cn("flex", msg.role === 'user' ? "justify-end" : "justify-start")}>
               <div className={cn(
@@ -1097,144 +1144,149 @@ const ExpenseChat = ({
                   ? "bg-zinc-800 text-zinc-100 rounded-tr-none" 
                   : "bg-yellow-500/10 text-yellow-500 rounded-tl-none border border-yellow-500/20"
               )}>
+                {msg.image && (
+                  <img src={msg.image} alt="Upload" className="max-w-full h-auto rounded-lg mb-2 max-h-48 object-cover" />
+                )}
                 {msg.content}
               </div>
             </div>
           ))}
-          {isLoading && <div className="text-zinc-500 text-sm animate-pulse">Digitando...</div>}
+          {isLoading && <div className="text-zinc-500 text-sm animate-pulse">Analisando dados...</div>}
 
           {/* Confirmation Card Inside Chat */}
-          {extractedData && (
+          {extractedDataList && extractedDataList.length > 0 && (
             <motion.div 
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full"
+              className="w-full space-y-4"
             >
-              <Card className="border-yellow-500/50 p-4 bg-zinc-900/80 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-zinc-100">Confirmar Lançamento</h3>
-                  <Button size="sm" variant="ghost" onClick={() => setExtractedData(null)}><X className="w-4 h-4" /></Button>
-                </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input 
-                    label="Nome" 
-                    value={extractedData.name || ''} 
-                    onChange={e => updateData('name', e.target.value)} 
-                  />
-                  <Input 
-                    label="Valor" 
-                    type="number" 
-                    value={extractedData.value || ''} 
-                    onChange={e => updateData('value', parseFloat(e.target.value))} 
-                  />
+              {extractedDataList.map((extractedData, index) => (
+                <Card key={index} className="border-yellow-500/50 p-4 bg-zinc-900/80 space-y-4 relative">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-zinc-100">Revisar Item {index + 1}</h3>
+                    <Button size="sm" variant="ghost" onClick={() => handleRemoveItem(index)} className="text-zinc-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                  </div>
                   
-                  <div className="space-y-1">
-                    <Select
-                      label="Categoria"
-                      value={expenseCategories.find(c => c.name === extractedData.category)?.id || ''}
-                      onChange={e => {
-                        const cat = expenseCategories.find(c => c.id === e.target.value);
-                        updateData('category', cat?.name);
-                      }}
-                    >
-                      <option value="">Selecione...</option>
-                      {expenseCategories.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </Select>
-                    {!extractedData.category && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {expenseCategories.slice(0, 5).map(c => (
-                          <button 
-                            key={c.id}
-                            onClick={() => updateData('category', c.name)}
-                            className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
-                          >
-                            {c.name}
-                          </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input 
+                      label="Nome" 
+                      value={extractedData.name || ''} 
+                      onChange={e => updateData(index, 'name', e.target.value)} 
+                    />
+                    <Input 
+                      label="Valor" 
+                      type="number" 
+                      value={extractedData.value || ''} 
+                      onChange={e => updateData(index, 'value', parseFloat(e.target.value))} 
+                    />
+                    
+                    <div className="space-y-1">
+                      <Select
+                        label="Categoria"
+                        value={expenseCategories.find(c => c.name === extractedData.category)?.id || ''}
+                        onChange={e => {
+                          const cat = expenseCategories.find(c => c.id === e.target.value);
+                          updateData(index, 'category', cat?.name);
+                        }}
+                      >
+                        <option value="">Selecione...</option>
+                        {expenseCategories.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
-                      </div>
-                    )}
-                  </div>
+                      </Select>
+                      {!extractedData.category && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {expenseCategories.slice(0, 5).map(c => (
+                            <button 
+                              key={c.id}
+                              onClick={() => updateData(index, 'category', c.name)}
+                              className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
+                            >
+                              {c.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="space-y-1">
-                    <Select
-                      label="Pagamento"
-                      value={extractedData.paymentMethod === 'Dinheiro' ? 'cash' : (cards.find(c => c.name === extractedData.paymentMethod)?.id || 'cash')}
-                      onChange={e => {
-                        const val = e.target.value;
-                        if (val === 'cash') updateData('paymentMethod', 'Dinheiro');
-                        else {
-                          const card = cards.find(c => c.id === val);
-                          updateData('paymentMethod', card?.name);
-                        }
-                      }}
-                    >
-                      <option value="cash">Dinheiro</option>
-                      {cards.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </Select>
-                    {(!extractedData.paymentMethod || extractedData.paymentMethod === 'Dinheiro') && (
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <button 
-                          onClick={() => updateData('paymentMethod', 'Dinheiro')}
-                          className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
-                        >
-                          Dinheiro
-                        </button>
+                    <div className="space-y-1">
+                      <Select
+                        label="Pagamento"
+                        value={extractedData.paymentMethod === 'Dinheiro' ? 'cash' : (cards.find(c => c.name === extractedData.paymentMethod)?.id || 'cash')}
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val === 'cash') updateData(index, 'paymentMethod', 'Dinheiro');
+                          else {
+                            const card = cards.find(c => c.id === val);
+                            updateData(index, 'paymentMethod', card?.name);
+                          }
+                        }}
+                      >
+                        <option value="cash">Dinheiro</option>
                         {cards.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </Select>
+                      {(!extractedData.paymentMethod || extractedData.paymentMethod === 'Dinheiro') && (
+                        <div className="flex flex-wrap gap-2 pt-1">
                           <button 
-                            key={c.id}
-                            onClick={() => updateData('paymentMethod', c.name)}
+                            onClick={() => updateData(index, 'paymentMethod', 'Dinheiro')}
                             className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
                           >
-                            {c.name}
+                            Dinheiro
                           </button>
-                        ))}
-                      </div>
-                    )}
+                          {cards.map(c => (
+                            <button 
+                              key={c.id}
+                              onClick={() => updateData(index, 'paymentMethod', c.name)}
+                              className="px-2 py-1 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300"
+                            >
+                              {c.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <Input 
+                        label="Data Compra" 
+                        type="date"
+                        value={extractedData.purchaseDate || ''} 
+                        onChange={e => updateData(index, 'purchaseDate', e.target.value)} 
+                      />
+                      {extractedData.purchaseDate && (
+                        <p className="text-[10px] text-zinc-500 pl-1">
+                          {format(parseISO(extractedData.purchaseDate), 'dd/MM/yyyy')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Input 
+                        label="Mês Fatura" 
+                        type="month"
+                        value={extractedData.billingMonth || ''} 
+                        onChange={e => updateData(index, 'billingMonth', e.target.value)} 
+                      />
+                      {extractedData.billingMonth && (
+                        <p className="text-[10px] text-zinc-500 pl-1 capitalize">
+                          {format(parseISO(extractedData.billingMonth + '-01'), 'MMM/yyyy', { locale: ptBR })}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <Input 
-                      label="Data Compra" 
-                      type="date"
-                      value={extractedData.purchaseDate || ''} 
-                      onChange={e => updateData('purchaseDate', e.target.value)} 
-                    />
-                    {extractedData.purchaseDate && (
-                      <p className="text-[10px] text-zinc-500 pl-1">
-                        {format(parseISO(extractedData.purchaseDate), 'dd/MM/yyyy')}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <Input 
-                      label="Mês Fatura" 
-                      type="month"
-                      value={extractedData.billingMonth || ''} 
-                      onChange={e => updateData('billingMonth', e.target.value)} 
-                    />
-                    {extractedData.billingMonth && (
-                      <p className="text-[10px] text-zinc-500 pl-1 capitalize">
-                        {format(parseISO(extractedData.billingMonth + '-01'), 'MMM/yyyy', { locale: ptBR })}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                  {extractedData.isInstallment && (extractedData.installments || 1) > 1 && (
+                    <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 text-yellow-500 text-sm text-center font-medium">
+                      Será salvo como: {extractedData.installments}x de {formatCurrency((extractedData.value || 0) / (extractedData.installments || 1))}
+                    </div>
+                  )}
 
-                {extractedData.isInstallment && (extractedData.installments || 1) > 1 && (
-                  <div className="p-3 bg-yellow-500/10 rounded-xl border border-yellow-500/20 text-yellow-500 text-sm text-center font-medium">
-                    Será salvo como: {extractedData.installments}x de {formatCurrency((extractedData.value || 0) / (extractedData.installments || 1))}
-                  </div>
-                )}
-
-                <Button className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold" onClick={handleConfirm}>
-                  <Check className="w-4 h-4 mr-2" /> Confirmar Lançamento
-                </Button>
-              </Card>
+                  <Button className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-bold" onClick={() => handleConfirmItem(index)}>
+                    <Check className="w-4 h-4 mr-2" /> Confirmar Lançamento {index + 1}
+                  </Button>
+                </Card>
+              ))}
             </motion.div>
           )}
           
@@ -1242,15 +1294,41 @@ const ExpenseChat = ({
         </div>
 
         <div className="p-4 border-t border-zinc-800 bg-zinc-950 rounded-b-2xl sticky bottom-0 z-10">
+          {imagePreview && (
+            <div className="relative mb-4 inline-block">
+              <img src={imagePreview} alt="Preview" className="h-16 w-16 object-cover rounded-lg border border-zinc-700" />
+              <button 
+                onClick={() => { setSelectedImage(null); setImagePreview(null); if(fileInputRef.current) fileInputRef.current.value = ''; }}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
           <div className="flex gap-2 items-center">
+            <input 
+              type="file" 
+              accept="image/png, image/jpeg, image/webp" 
+              className="hidden" 
+              ref={fileInputRef}
+              onChange={handleImageSelect}
+            />
+            <Button 
+              size="icon" 
+              variant="outline" 
+              className="border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-yellow-500 hover:bg-zinc-800 shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <ImageIcon className="w-5 h-5" />
+            </Button>
             <Input 
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Digite seu gasto..."
+              placeholder="Digite seu gasto ou envie imagem..."
               className="bg-zinc-900 border-zinc-800 focus:ring-yellow-500/20 text-base"
             />
-            <Button size="icon" onClick={handleSend} disabled={isLoading || !input.trim()}>
+            <Button size="icon" onClick={handleSend} disabled={isLoading || (!input.trim() && !selectedImage)}>
               <Send className="w-4 h-4" />
             </Button>
           </div>

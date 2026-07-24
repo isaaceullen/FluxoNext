@@ -928,17 +928,21 @@ const ExpenseList = ({
                   {exp.title}
                   {isPaused && <span className="ml-2 text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">Pausada</span>}
                 </h4>
-                <div className="flex flex-wrap gap-x-2 gap-y-1 text-[10px] sm:text-xs text-zinc-500">
+                <div className="flex flex-wrap gap-x-2 gap-y-1 items-center text-[10px] sm:text-xs text-zinc-500">
                   <span>{format(parseISO(exp.purchaseDate), 'dd/MM/yyyy')}</span>
                   <span className="text-zinc-600">•</span>
                   <span className="capitalize">Fatura: {format(parseISO(exp.billingMonth + '-01'), 'MMM/yyyy', { locale: ptBR })}</span>
                   <span className="text-zinc-600">•</span>
                   <span style={{ color: category?.color }}>{category?.name}</span>
-                  {exp.type === 'fixed' && <span className="text-emerald-500">• Fixa</span>}
+                  <span className="text-zinc-600">•</span>
+                  <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium border border-zinc-700/50">
+                    {(exp as any).currentMonthPaymentMethod === 'cash' ? 'Dinheiro' : (card?.name || 'Dinheiro')}
+                  </span>
+                  {exp.type === 'fixed' && <span className="text-emerald-500 ml-1">• Fixa</span>}
                   {exp.installments && (
                     <>
-                      <span className="text-zinc-600">•</span>
-                      <span className="text-yellow-500">Parcela {exp.installments.current}/{exp.installments.total}</span>
+                      <span className="text-zinc-600 ml-1">•</span>
+                      <span className="text-yellow-500 ml-1">Parcela {exp.installments.current}/{exp.installments.total}</span>
                     </>
                   )}
                 </div>

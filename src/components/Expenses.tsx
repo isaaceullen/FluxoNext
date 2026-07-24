@@ -935,9 +935,22 @@ const ExpenseList = ({
                   <span className="text-zinc-600">•</span>
                   <span style={{ color: category?.color }}>{category?.name}</span>
                   <span className="text-zinc-600">•</span>
-                  <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium border border-zinc-700/50">
-                    {(exp as any).currentMonthPaymentMethod === 'cash' ? 'Dinheiro' : (card?.name || 'Dinheiro')}
-                  </span>
+                  {(exp as any).currentMonthPaymentMethod === 'cash' || !card ? (
+                    <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium border border-zinc-700/50">
+                      Dinheiro
+                    </span>
+                  ) : (
+                    <span 
+                      className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium border"
+                      style={{ 
+                        backgroundColor: `${card.color}20`, 
+                        color: card.color, 
+                        borderColor: `${card.color}40` 
+                      }}
+                    >
+                      {card.name}
+                    </span>
+                  )}
                   {exp.type === 'fixed' && <span className="text-emerald-500 ml-1">• Fixa</span>}
                   {exp.installments && (
                     <>
